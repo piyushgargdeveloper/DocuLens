@@ -53,9 +53,10 @@ officially representing the project in public spaces.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported by opening a GitHub issue for non-sensitive concerns, or by
-contacting the maintainer directly via GitHub
-([@piyushgargog](https://github.com/piyushgargog)) for sensitive reports. All
-complaints will be reviewed and investigated promptly and fairly.
+contacting the maintainer directly via GitHub —
+[@piyushgargog](https://github.com/piyushgargog) — for sensitive
+reports. All complaints will be reviewed and investigated promptly and
+fairly.
 
 ## Attribution
 
