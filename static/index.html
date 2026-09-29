@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" />
   <!-- ?v= changes with each release so browsers holding an older cached copy fetch the new file. -->
-  <link rel="stylesheet" href="/static/style.css?v=1.4.0" />
+  <link rel="stylesheet" href="/static/style.css?v=1.4.1" />
 </head>
 <body data-view="upload">
   <header class="topbar">
@@ -38,8 +38,7 @@
 
     <main class="desk">
       <!-- Empty / upload state -->
-      <section id="upload-view" class="title-page has-specimen">
-        <div class="title-copy">
+      <section id="upload-view" class="title-page">
         <h1 class="intro-title">Every answer, with the page it came from.</h1>
         <p class="intro-body">
           Upload a PDF and ask it questions. Answers use only the document's
@@ -52,17 +51,6 @@
         </label>
         <input id="file-input" type="file" accept="application/pdf" hidden />
         <p id="upload-error" class="error-text" role="alert" hidden></p>
-        </div>
-
-        <!-- A static specimen of an answer and its margin note (decorative). -->
-        <figure class="specimen" aria-hidden="true">
-          <p class="specimen-q">How many moons does Saturn have?</p>
-          <p class="specimen-a">Saturn has over 140 confirmed moons, the most of any planet<span class="cite">p. 4</span>.</p>
-          <div class="slip specimen-note">
-            <div class="slip-head"><span class="slip-page">Page 4</span></div>
-            <p class="slip-text">Many planets have natural satellites called moons. Earth has one moon. Saturn has over 140 confirmed moons, the most of any planet.</p>
-          </div>
-        </figure>
       </section>
 
       <!-- Indexing state -->
@@ -116,6 +104,6 @@
     </li>
   </template>
 
-  <script src="/static/app.js?v=1.4.0"></script>
+  <script src="/static/app.js?v=1.4.1"></script>
 </body>
 </html>

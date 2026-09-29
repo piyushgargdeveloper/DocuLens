@@ -140,53 +140,10 @@ body:not([data-view="chat"]) .shelf {
 /* ---------- Title page (upload / reading) ---------- */
 
 .title-page {
-  margin: auto 0;
+  margin: auto;
   width: 100%;
   max-width: 760px;
   padding: 24px 0 8vh;
-}
-
-.specimen {
-  display: none;
-}
-
-/* On a wide desk the title page shows what it promises: an answer, its
-   yellow page tab, and the margin note being highlighted once on load. */
-@media (min-width: 1100px) {
-  .title-page.has-specimen {
-    max-width: 1180px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
-    column-gap: 80px;
-    align-items: center;
-  }
-
-  .specimen {
-    display: block;
-    margin: 0;
-    padding: 28px 28px 30px;
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-  }
-}
-
-.specimen-q {
-  font-weight: 700;
-  margin: 0 0 8px;
-}
-
-.specimen-a {
-  font-family: var(--serif);
-  font-size: var(--text-lg);
-  line-height: 1.6;
-  margin: 0 0 20px;
-}
-
-.slip.specimen-note {
-  border-left-color: var(--highlight);
-  background-size: 100% 100%;
-  animation: highlighter 0.7s ease-out 0.6s backwards;
 }
 
 .intro-title {
