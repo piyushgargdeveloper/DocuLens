@@ -126,3 +126,45 @@ def test_https_sessions_use_a_host_prefixed_cookie(sample_pdf_bytes):
     assert "__Host-session" in secure.cookies
     assert "session_id" not in secure.cookies
     assert [d["id"] for d in secure.get("/api/session").json()["documents"]] == [response["id"]]
+
+
+# --- v2.2: which provider answered -------------------------------------------
+
+
+def test_stream_names_the_provider_that_answers(client, sample_pdf_bytes, monkeypatch):
+    import llm_client
+    from providers import Route
+
+    route = Route("openrouter", "OpenRouter", "https://example.invalid", "openai/gpt-oss-120b:free", "secret-key")
+
+    def fake_ask_stream(question, passages, timeout=30, history=None):
+        yield llm_client._tagged("Jupiter ", route)
+        yield "is largest."
+
+    monkeypatch.setattr(llm_client, "ask_stream", fake_ask_stream)
+    _upload(client, sample_pdf_bytes)
+    response = client.post("/api/ask/stream", json={"question": "What is Jupiter known for?"})
+    events = _events(response)
+    assert [name for name, _ in events[:2]] == ["sources", "route"]
+    assert events[1][1] == {"provider": "OpenRouter", "model": "openai/gpt-oss-120b:free"}
+    assert "secret-key" not in response.text
+    # Kept with the turn, so a reloaded page still says who answered.
+    assert client.get("/api/session").json()["history"][-1]["answered_by"]["provider"] == "OpenRouter"
+
+
+def test_status_lists_providers_without_secrets(client, monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDERS", "groq,nvidia")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setenv("LLM_API_KEY", "gsk-secret")
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-secret")
+    monkeypatch.delenv("LLM_FALLBACK_MODEL", raising=False)
+    response = client.get("/api/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == main.APP_VERSION
+    assert [p["provider"] for p in body["providers"]] == ["Groq", "NVIDIA"]
+    assert "secret" not in response.text and "https://" not in response.text
+
+
+def test_health_check(client):
+    assert client.get("/api/health").json() == {"ok": True}

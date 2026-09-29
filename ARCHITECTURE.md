@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v2.1.0._
+_Current as of v2.2.0._
 
 ## Overview
 
@@ -82,11 +82,21 @@ documented chunking evaluation stays valid.
    any extra chunk keys (e.g. `doc`).
 
 7. **LLM client** (`llm_client.py`)
-   One OpenAI-compatible chat-completions call over `requests`, configured
-   only by `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`. Builds the grounding
-   prompt (below), retries HTTP 429 honoring `Retry-After` (both numeric and
-   HTTP-date forms, capped at 30s), and wraps every failure in
-   `LLMConfigError` / `LLMRequestError`. Also has a separate summary prompt.
+   OpenAI-compatible chat-completions calls over `requests`. Builds the
+   grounding prompt (below) and sends it along the provider chain from
+   `providers.py` (v2.2.0): Groq, OpenRouter, NVIDIA and Hugging Face
+   (Google AI Studio opt-in), in
+   `LLM_PROVIDERS` order, each used only if its key is set, plus an optional
+   second Groq model (`LLM_FALLBACK_MODEL`) at the end. A route that is rate
+   limited, times out, returns 5xx/401/403/404 or an empty reply hands the
+   question to the next and goes on cooldown (as long as `Retry-After` asks,
+   capped at 15 min; 15 min for a bad key or model; 30s for a timeout or
+   5xx). While another route remains, a 429 is not waited out (at most 3s);
+   the last route waits up to 30s as before. Streams switch provider only
+   before the first token. Replies carry their route (`Answer`, a `str`
+   subclass), so the API can say who answered. Failures surface as
+   `LLMConfigError` (no provider configured) / `LLMRateLimitError` (all
+   rate limited) / `LLMRequestError`.
 
 8. **Orchestration** (`pipeline.py`)
    `ingest()`, `retrieve()`, `answer()` and `summarize()` — the only place
@@ -168,10 +178,16 @@ The turn is saved to the history only when the stream completes, so a
 stopped answer never becomes context. The response carries
 `X-Accel-Buffering: no` so Nginx passes events through immediately.
 
-**Fallback model.** If the main model is still rate limited after retries
-(on Groq's free tier this is usually the 200k-tokens-per-day quota), and
-`LLM_FALLBACK_MODEL` is set, the same messages go once to the fallback model
-(`openai/gpt-oss-20b`, which has its own quota). An empty reply — which
+**Provider failover (v2.2.0).** Free tiers are small — Groq's is 200k
+tokens a day per model — so one provider alone runs out. `providers.py`
+builds a chain of every provider with a key (Groq, OpenRouter, NVIDIA and
+Hugging Face serving open models: gpt-oss-120b, Nemotron 3 Super,
+gpt-oss-20b; Google AI Studio's Gemini is opt-in), then Groq's
+`LLM_FALLBACK_MODEL`. A failing route is skipped for a cooldown so later
+questions don't wait on it; if every route is cooling down they are all
+tried anyway. The `route` SSE event and `answered_by` fields tell the UI
+which provider answered, and `GET /api/status` lists the providers and
+whether each is usable, for the footer. An empty reply — which
 reasoning models occasionally return — is retried once, then reported as an
 error rather than shown as a blank answer.
 

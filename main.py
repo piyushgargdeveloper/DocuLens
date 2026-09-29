@@ -26,7 +26,8 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import pipeline
-from llm_client import LLMConfigError, LLMRequestError
+import providers
+from llm_client import LLMConfigError, LLMRequestError, answered_by
 
 load_dotenv()
 
@@ -34,7 +35,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The release version. static/index.html repeats it (asset ?v= query, footer,
 # release link) and tests/test_api.py fails if the two ever disagree.
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.2.0"
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
@@ -479,6 +480,27 @@ async def get_session(request: Request):
     return {"documents": _documents(session), "history": session.history}
 
 
+def _turn(question: str, answer: str, by: dict | None) -> dict:
+    """One conversation turn as stored in the session (and restored on reload)."""
+    turn = {"question": question, "answer": answer}
+    if by:
+        turn["answered_by"] = by
+    return turn
+
+
+@app.get("/api/status")
+async def status():
+    """The AI providers this server can use and whether each is usable right
+    now, for the footer. Names and models only -- never keys or URLs."""
+    return {"version": APP_VERSION, "providers": providers.status()}
+
+
+@app.get("/api/health")
+async def health():
+    """Liveness check for the container (no LLM call)."""
+    return {"ok": True}
+
+
 @app.post("/api/ask")
 async def ask(request: Request):
     """Answer as one JSON response (the UI uses /api/ask/stream)."""
@@ -499,15 +521,17 @@ async def ask(request: Request):
     finally:
         _llm_slots.release()
 
-    session.history.append({"question": question, "answer": result["answer"]})
+    by = answered_by(result["answer"])
+    session.history.append(_turn(question, result["answer"], by))
     del session.history[:-MAX_STORED_TURNS]
-    return {"answer": result["answer"], "sources": result["sources"]}
+    return {"answer": result["answer"], "sources": result["sources"], "answered_by": by}
 
 
 @app.post("/api/ask/stream")
 async def ask_stream(request: Request):
-    """Answer as server-sent events: `sources` first, then `token` events as
-    the model writes, then `done` (or `error`).
+    """Answer as server-sent events: `sources` first, then `route` (which
+    provider and model is answering), then `token` events as the model
+    writes, then `done` (or `error`).
 
     Retrieval and the first piece of the answer are fetched *before* the
     response starts, so a missing API key, a rate limit or a provider failure
@@ -534,11 +558,15 @@ async def ask_stream(request: Request):
         _llm_slots.release()
         return _llm_error_response(e, "answering that question")
 
+    by = answered_by(first)
+
     async def events():
         parts = [first] if first else []
         completed = False
         try:
             yield _sse("sources", sources)
+            if by:
+                yield _sse("route", by)
             if first:
                 yield _sse("token", {"text": first})
             async for piece in iterate_in_threadpool(pieces):
@@ -546,7 +574,7 @@ async def ask_stream(request: Request):
                 yield _sse("token", {"text": piece})
             completed = True
             answer = "".join(parts)
-            session.history.append({"question": question, "answer": answer})
+            session.history.append(_turn(question, answer, by))
             del session.history[:-MAX_STORED_TURNS]
             yield _sse("done", {})
         except Exception as e:
@@ -590,7 +618,12 @@ async def summary(request: Request):
         return _llm_error_response(e, "summarizing the document")
     finally:
         _llm_slots.release()
-    return {"filename": index_state.name, "summary": result["summary"], "sources": result["sources"]}
+    return {
+        "filename": index_state.name,
+        "summary": result["summary"],
+        "sources": result["sources"],
+        "answered_by": answered_by(result["summary"]),
+    }
 
 
 @app.post("/api/suggestions")

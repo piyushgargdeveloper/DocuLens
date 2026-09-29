@@ -17,7 +17,10 @@ For context before reporting an issue, see the "Security notes" section of
   rule after the passages, so instructions embedded in an uploaded document
   should not be obeyed (verified against injection payloads on both the
   main and the fallback model — see `DECISIONS.md`).
-- The LLM API key is read only from the environment (`LLM_API_KEY`), never
+- LLM provider keys are read only from the environment (`GEMINI_API_KEY`,
+  `GROQ_API_KEY` or `LLM_API_KEY`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, `HF_TOKEN`); the
+  public `/api/status` shows provider names, models and availability only.
+  Keys are never
   logged, rendered, or committed. `.env` is gitignored; only `.env.example`
   (placeholders) is tracked.
 - The session cookie is `httponly`, `samesite=lax`, and `Secure` over HTTPS.

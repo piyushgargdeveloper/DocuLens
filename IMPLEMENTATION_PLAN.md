@@ -121,6 +121,12 @@ Added later, each with its reasoning in `DECISIONS.md`:
   retrieval in production, per-question document scope, copy/export,
   new composer, concurrency limits, CSRF guard, `__Host-` cookie,
   `pip-audit` in CI.
+- v2.2.0: several AI providers with failover and cooldowns
+  (`providers.py`: Groq, OpenRouter, NVIDIA, Hugging Face; Google AI
+  Studio opt-in), "answered by"
+  on every answer, `/api/status` + live provider status in a two-tier
+  footer, `/api/health` + Docker HEALTHCHECK, light/dark toggle, toasts,
+  jump-to-latest, smooth scrolling, loading skeleton.
 - v2.1.0: visible redesign ("Modern product", `DESIGN.md`): Inter,
   sidebar and conversation cards, question bubbles, source cards, floating
   composer, full footer with credit, links, privacy dialog and version.

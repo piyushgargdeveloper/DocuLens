@@ -355,3 +355,22 @@ understood and explainable without AI help (the task requires it):
   screenshots (desktop light and dark, and a 390px phone). Those
   screenshots showed the start page running under the footer on a phone,
   which it fixed before release.
+
+## Version 2.2.0
+
+- The user asked for more than one AI provider ("one alone won't do"),
+  naming Groq, Hugging Face, OpenRouter and NVIDIA, and later asked for
+  Google AI Studio to be tried first. The assistant added it, but in testing
+  Gemini's free tier was overloaded (503) or rate limited on most calls, so
+  its injection safety couldn't be verified. The user then asked to ship
+  what works, and Gemini was made opt-in. The AI coding assistant
+  noticed that all five offer OpenAI-compatible APIs. It built a failover chain with per-provider
+  cooldowns instead of four client integrations, and kept older `.env`
+  files working.
+- It wrote unit tests with fake HTTP responses for each failure path (rate
+  limit, bad key, timeout, 5xx, mid-stream failure) before verifying against
+  the real providers.
+- It also added the visible pieces the user asked for (a smoother UI and a
+  better footer): provider status in the footer, "answered by" on answers,
+  a theme toggle, toasts and jump-to-latest. It checked them in a headless
+  browser, which caught toasts covering the footer.

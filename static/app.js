@@ -2,8 +2,8 @@
  * AI Document Assistant -- frontend logic.
  *
  * Talks to the FastAPI backend (main.py) at /api/ingest, /api/ask/stream
- * (server-sent events), /api/summary, /api/suggestions, /api/remove and
- * /api/session. All dynamic content
+ * (server-sent events), /api/summary, /api/suggestions, /api/remove,
+ * /api/session and /api/status. All dynamic content
  * (questions, answers, document text, filenames) is inserted with
  * textContent / text nodes, never innerHTML, so nothing from a document or
  * the model can inject markup into the page.
@@ -97,9 +97,14 @@ function scrollToBottom() {
  * answer arrives: jumping to the bottom would skip past the start of a long
  * answer, so the view stops at the question and the answer reads top-down.
  */
-function scrollToStart(el) {
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+function scrollToStart(el, smooth = true) {
   const offset = el.getBoundingClientRect().top - messagesEl.getBoundingClientRect().top;
-  messagesEl.scrollTop += offset - 8;
+  messagesEl.scrollTo({
+    top: messagesEl.scrollTop + offset - 12,
+    behavior: smooth && !reducedMotion.matches ? "smooth" : "auto",
+  });
 }
 
 function append(el) {
@@ -244,7 +249,7 @@ function markSlip(notes, slip) {
   // Restart the highlighter animation even when the same tab is clicked twice.
   void slip.offsetWidth;
   slip.classList.add("marked");
-  slip.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  slip.scrollIntoView({ block: "nearest", behavior: reducedMotion.matches ? "auto" : "smooth" });
 }
 
 /**
@@ -322,6 +327,7 @@ function buildActions(answer, { followUps }) {
     try {
       await navigator.clipboard.writeText(answerAsText(answer));
       copy.textContent = "Copied";
+      showToast("Answer copied, with its sources");
     } catch (err) {
       copy.textContent = "Couldn't copy";
     }
@@ -329,6 +335,23 @@ function buildActions(answer, { followUps }) {
   });
   bar.appendChild(copy);
   return bar;
+}
+
+/** "gpt-oss-120b" rather than "openai/gpt-oss-120b:free". */
+function modelName(model) {
+  return model.replace(/^[\w.-]+\//, "").replace(/:free$/, "");
+}
+
+/** Which provider and model wrote an answer, shown beside its actions. */
+function routeTag(route) {
+  const tag = document.createElement("span");
+  tag.className = "answered-by";
+  tag.title = `Answered by ${route.provider} (${route.model})`;
+  const dot = document.createElement("span");
+  dot.className = "answered-by-dot";
+  dot.setAttribute("aria-hidden", "true");
+  tag.append(dot, `${route.provider} · ${modelName(route.model)}`);
+  return tag;
 }
 
 /** The answer as plain text, with its sources listed underneath. */
@@ -369,7 +392,7 @@ function startAnswer(el, sources, { heading, sourcesLabel = "Sources" } = {}) {
     el.classList.add("has-notes");
     el.appendChild(notes.panel);
   }
-  return { el, main, body, notes, sources: sources || [], text: "" };
+  return { el, main, body, notes, sources: sources || [], text: "", route: null };
 }
 
 function updateAnswer(answer) {
@@ -387,13 +410,18 @@ function finishAnswer(answer, { followUps = false, stopped = false } = {}) {
     answer.main.appendChild(note);
   }
   const refused = answer.text.trim().startsWith(REFUSAL);
-  if (!stopped && answer.text) answer.main.appendChild(buildActions(answer, { followUps: followUps && !refused }));
+  if (!stopped && answer.text) {
+    const bar = buildActions(answer, { followUps: followUps && !refused });
+    if (answer.route) bar.appendChild(routeTag(answer.route));
+    answer.main.appendChild(bar);
+  }
   if (answer.notes) answer.main.appendChild(answer.notes.toggle);
 }
 
-function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources", followUps = false } = {}) {
+function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources", followUps = false, route = null } = {}) {
   const answer = startAnswer(el, sources, { heading, sourcesLabel });
   answer.text = text;
+  answer.route = route;
   finishAnswer(answer, { followUps });
   return answer;
 }
@@ -569,19 +597,23 @@ async function summarizeDoc(doc, button) {
   const answer = showAnswer(pending, summary, data.sources, {
     heading: `Summary of ${data.filename}`,
     sourcesLabel: "Passages used",
+    route: data.answered_by,
   });
-  transcript.push({ question: `Summary of ${data.filename}`, answer: answer.text, sources: answer.sources });
+  transcript.push({ question: `Summary of ${data.filename}`, answer: answer.text, sources: answer.sources, route: answer.route });
+  refreshProviders();
   syncExport();
   scrollToStart(pending);
 }
 
 async function removeDoc(id) {
+  const name = loadedDocs.find((d) => d.id === id)?.filename;
   const data = await api("/api/remove", { id });
   if (data.error) {
     addError(data.error);
     return;
   }
   renderDocuments(data.documents);
+  if (name) showToast(`Removed ${name}`);
 }
 
 // ---------- Events ----------
@@ -626,6 +658,7 @@ dropzone.addEventListener("drop", (e) => {
 removeBtn.addEventListener("click", async () => {
   await api("/api/remove", {});
   renderDocuments([]);
+  showToast("All documents removed from the server");
 });
 
 let busy = false;
@@ -721,6 +754,8 @@ async function askQuestion(question, shown = question) {
           answer = startAnswer(pending, data);
           answer.body.classList.add("streaming");
           scrollToStart(asked);
+        } else if (name === "route" && answer) {
+          answer.route = data;
         } else if (name === "token" && answer) {
           answer.text += data.text;
           if (!frame) frame = requestAnimationFrame(render);
@@ -739,7 +774,7 @@ async function askQuestion(question, shown = question) {
     finishAnswer(answer, { followUps: true, stopped });
     if (failed) addError(failed);
     else if (!stopped) {
-      transcript.push({ question: shown, answer: answer.text, sources: answer.sources });
+      transcript.push({ question: shown, answer: answer.text, sources: answer.sources, route: answer.route });
       syncExport();
     }
   } else if (stopped) {
@@ -750,6 +785,7 @@ async function askQuestion(question, shown = question) {
   scrollToStart(asked);
   activeStream = null;
   setBusy(false);
+  refreshProviders();
 }
 
 function stopAnswer() {
@@ -799,11 +835,11 @@ questionInput.addEventListener("input", syncQuestionState);
   let lastQuestion = null;
   for (const turn of data.history) {
     lastQuestion = addUser(turn.question);
-    showAnswer(addNote(""), turn.answer, []);
-    transcript.push({ question: turn.question, answer: turn.answer, sources: [] });
+    showAnswer(addNote(""), turn.answer, [], { route: turn.answered_by });
+    transcript.push({ question: turn.question, answer: turn.answer, sources: [], route: turn.answered_by });
   }
   syncExport();
-  if (lastQuestion) scrollToStart(lastQuestion);
+  if (lastQuestion) scrollToStart(lastQuestion, false);
   else addNote("Your documents are still loaded. Ask anything about them.");
 })();
 
@@ -825,6 +861,7 @@ function exportConversation() {
   ];
   for (const turn of transcript) {
     lines.push("", `## ${turn.question}`, "", plain(turn.answer).trim());
+    if (turn.route) lines.push("", `_Answered by ${turn.route.provider} (${turn.route.model})_`);
     if (turn.sources.length) {
       lines.push("", "**Sources**", "");
       for (const src of turn.sources) {
@@ -843,6 +880,7 @@ function exportConversation() {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(`Exported conversation-${date}.md`);
 }
 exportBtn.addEventListener("click", exportConversation);
 
@@ -898,4 +936,99 @@ privacyDialog.addEventListener("click", (e) => {
   const box = privacyDialog.getBoundingClientRect();
   const outside = e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom;
   if (e.target === privacyDialog && outside) privacyDialog.close();
+});
+
+// ---------- v2.2: providers, theme, toasts, jump to latest ----------
+
+/** Footer: which AI providers this server can use, and whether each is
+ *  usable right now (green) or cooling down after a rate limit (amber). */
+const providerList = document.getElementById("provider-list");
+const footerProviders = document.getElementById("footer-providers");
+
+async function refreshProviders() {
+  const data = await api("/api/status");
+  if (data.error || !Array.isArray(data.providers) || data.providers.length === 0) return;
+  // Groq may appear twice (main + fallback model): one pill per provider,
+  // ready if any of its models is.
+  const byName = new Map();
+  for (const p of data.providers) {
+    const entry = byName.get(p.provider) || { ready: false, models: [] };
+    entry.ready ||= p.state === "ready";
+    entry.models.push(modelName(p.model));
+    byName.set(p.provider, entry);
+  }
+  providerList.replaceChildren();
+  for (const [name, { ready, models }] of byName) {
+    const li = document.createElement("li");
+    li.className = "provider";
+    li.dataset.state = ready ? "ready" : "cooling";
+    li.title = `${name}: ${models.join(", ")} — ${ready ? "available" : "busy, retrying soon"}`;
+    const dot = document.createElement("span");
+    dot.className = "provider-dot";
+    dot.setAttribute("aria-hidden", "true");
+    li.append(dot, name);
+    li.setAttribute("aria-label", `${name}, ${ready ? "available" : "busy"}`);
+    providerList.appendChild(li);
+  }
+  footerProviders.hidden = false;
+}
+refreshProviders();
+setInterval(() => {
+  if (!document.hidden) refreshProviders();
+}, 60000);
+
+/** Light / dark / follow the system, remembered in this browser. */
+const themeBtn = document.getElementById("theme-btn");
+const THEME_LABELS = { system: "match system", light: "light", dark: "dark" };
+
+function applyTheme(choice) {
+  if (choice === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = choice;
+  themeBtn.dataset.choice = choice;
+  const label = `Theme: ${THEME_LABELS[choice]}`;
+  themeBtn.setAttribute("aria-label", label);
+  themeBtn.title = label;
+}
+
+applyTheme(document.documentElement.dataset.theme || "system");
+themeBtn.addEventListener("click", () => {
+  const order = ["system", "light", "dark"];
+  const next = order[(order.indexOf(themeBtn.dataset.choice) + 1) % order.length];
+  applyTheme(next);
+  try {
+    if (next === "system") localStorage.removeItem("theme");
+    else localStorage.setItem("theme", next);
+  } catch (err) {
+    /* not remembered, still applied */
+  }
+  showToast(`Theme: ${THEME_LABELS[next]}`);
+});
+
+/** Short confirmations that don't belong in the conversation. */
+const toasts = document.getElementById("toasts");
+
+function showToast(text) {
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = text;
+  toasts.appendChild(toast);
+  while (toasts.children.length > 3) toasts.firstElementChild.remove();
+  setTimeout(() => {
+    toast.classList.add("leaving");
+    setTimeout(() => toast.remove(), 250);
+  }, 2600);
+}
+
+/** A round button to jump back down after scrolling up in a long conversation. */
+const jumpBtn = document.getElementById("jump-btn");
+
+function syncJump() {
+  const fromBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+  jumpBtn.hidden = fromBottom < 240;
+  if (!jumpBtn.hidden) jumpBtn.style.bottom = `${askForm.offsetHeight + 12}px`;
+}
+messagesEl.addEventListener("scroll", syncJump, { passive: true });
+new ResizeObserver(syncJump).observe(messagesEl);
+jumpBtn.addEventListener("click", () => {
+  messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: reducedMotion.matches ? "auto" : "smooth" });
 });
