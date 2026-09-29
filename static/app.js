@@ -79,6 +79,16 @@ function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+/**
+ * Scroll the conversation so `el` sits at the top of the pane. Used when an
+ * answer arrives: jumping to the bottom would skip past the start of a long
+ * answer, so the view stops at the question and the answer reads top-down.
+ */
+function scrollToStart(el) {
+  const offset = el.getBoundingClientRect().top - messagesEl.getBoundingClientRect().top;
+  messagesEl.scrollTop += offset - 8;
+}
+
 function append(el) {
   messagesEl.appendChild(el);
   scrollToBottom();
@@ -120,7 +130,10 @@ function addError(text) {
 // markdown rendering, by design), so drop the markers instead of showing
 // literal asterisks.
 function plain(text) {
-  return text.replace(/\*\*(.+?)\*\*/g, "$1");
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    // Markdown list markers ("* item", "- item") become real bullets.
+    .replace(/^([ \t]*)[*-][ \t]+/gm, "$1• ");
 }
 
 // Citations the model writes, e.g. 【report.pdf, Page 3】, [Page 3],
@@ -271,7 +284,6 @@ function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources" } = {
     main.appendChild(notes.toggle);
     el.appendChild(notes.panel);
   }
-  scrollToBottom();
 }
 
 function showFailure(el, text) {
@@ -385,6 +397,7 @@ async function summarizeDoc(doc, button) {
     heading: `Summary of ${data.filename}`,
     sourcesLabel: "Passages used",
   });
+  scrollToStart(pending);
 }
 
 async function removeDoc(id) {
@@ -444,7 +457,7 @@ askForm.addEventListener("submit", async (e) => {
   const question = questionInput.value.trim();
   if (!question) return;
 
-  addUser(question);
+  const asked = addUser(question);
   questionInput.value = "";
   autoGrow();
   askBtn.disabled = true;
@@ -458,10 +471,11 @@ askForm.addEventListener("submit", async (e) => {
   } else {
     showAnswer(pending, data.answer, data.sources);
   }
+  scrollToStart(asked);
 
   askBtn.disabled = false;
   questionInput.disabled = false;
-  questionInput.focus();
+  questionInput.focus({ preventScroll: true });
 });
 
 // Enter submits, Shift+Enter inserts a newline.
@@ -487,9 +501,11 @@ questionInput.addEventListener("input", autoGrow);
   if (data.error || !data.documents || data.documents.length === 0) return;
   showView("chat");
   renderDocuments(data.documents);
+  let lastQuestion = null;
   for (const turn of data.history) {
-    addUser(turn.question);
+    lastQuestion = addUser(turn.question);
     showAnswer(addNote(""), turn.answer, []);
   }
-  if (data.history.length === 0) addNote("Your documents are still loaded. Ask anything about them.");
+  if (lastQuestion) scrollToStart(lastQuestion);
+  else addNote("Your documents are still loaded. Ask anything about them.");
 })();

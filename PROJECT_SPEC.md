@@ -5,7 +5,7 @@ small, self-contained RAG (Retrieval-Augmented Generation) tool for asking
 grounded questions about uploaded PDFs. It started as a single-document
 tool; the optional enhancements listed originally (multiple documents,
 conversation history, document summary) have since been built and are now
-part of the requirements below. _Current as of v1.4.1._
+part of the requirements below. _Current as of v1.4.2._
 
 ## Problem
 
@@ -75,8 +75,9 @@ Build a document question-answering tool that:
 | NFR4 | Degrades gracefully (clear message, correct HTTP status, never a crash or a frozen screen) when the API key is missing, the PDF is invalid, the LLM fails, or a proxy returns an error page. |
 | NFR5 | No fabricated test results — everything in `DECISIONS.md`/README reflects actual runs. |
 | NFR6 | Usable at a 375px mobile width with no horizontal overflow; light and dark themes; keyboard-operable (including upload); respects reduced motion. |
-| NFR7 | Bounded resources: 25MB uploads, 1000-character questions, 5 documents per session, 50 sessions, 2-hour idle expiry. |
+| NFR7 | Bounded resources: 25MB uploads, 1000-character questions, 5 documents per session, 50 sessions, 2-hour idle expiry enforced by a background sweep. |
 | NFR8 | No document-specific content hardcoded in the application source. |
+| NFR9 | Uploaded documents are never persisted: no disk writes, and their extracted text is deleted on removal or expiry. |
 
 ## Acceptance Criteria
 
@@ -98,5 +99,5 @@ Build a document question-answering tool that:
 - Python, PyMuPDF, sentence-transformers, FAISS, a configurable
   OpenAI-compatible LLM API, and a FastAPI backend serving a static
   HTML/CSS/JS frontend.
-- Must actually run and be tested before being called done — 45 automated
+- Must actually run and be tested before being called done — 48 automated
   tests plus real-browser checks of the deployed app (see `README.md`).

@@ -185,3 +185,52 @@ def test_frontend_files_are_revalidated_but_api_is_untouched(client):
     for path in ("/", "/static/app.js", "/static/style.css"):
         assert client.get(path).headers["cache-control"] == "no-cache"
     assert "cache-control" not in client.get("/api/session").headers
+
+
+# --- Uploaded documents don't outlive their session ------------------------
+
+
+def _expired_session(main):
+    session = main.Session()
+    session.last_used -= main.SESSION_TTL_SECONDS + 1
+    return session
+
+
+def test_expired_sessions_are_pruned():
+    import main
+
+    main._sessions["stale"] = _expired_session(main)
+    main._sessions["fresh"] = main.Session()
+    main._prune_sessions()
+    assert "stale" not in main._sessions
+    assert "fresh" in main._sessions
+    del main._sessions["fresh"]
+
+
+def test_background_sweeper_deletes_expired_sessions_without_any_request(monkeypatch):
+    import time
+
+    import main
+
+    monkeypatch.setattr(main, "CLEANUP_INTERVAL_SECONDS", 0.05)
+    with TestClient(main.app):  # runs the lifespan, which starts the sweeper
+        main._sessions["stale"] = _expired_session(main)
+        deadline = time.time() + 3
+        while "stale" in main._sessions and time.time() < deadline:
+            time.sleep(0.05)
+        assert "stale" not in main._sessions
+
+
+def test_upload_temp_file_is_closed_right_after_reading(client, sample_pdf_bytes, monkeypatch):
+    from starlette.datastructures import UploadFile
+
+    closed = []
+    original_close = UploadFile.close
+
+    async def tracking_close(self):
+        closed.append(self.filename)
+        await original_close(self)
+
+    monkeypatch.setattr(UploadFile, "close", tracking_close)
+    client.post("/api/ingest", files={"file": ("sample.pdf", sample_pdf_bytes, "application/pdf")})
+    assert "sample.pdf" in closed

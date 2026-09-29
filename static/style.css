@@ -128,6 +128,10 @@ body {
 .desk {
   flex: 1;
   min-width: 0;
+  /* Without this, in the stacked mobile layout the desk grows to fit its
+     content: the conversation stops scrolling and the ask box is pushed
+     below the screen. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -192,6 +196,13 @@ body:not([data-view="chat"]) .shelf {
   border-style: solid;
   background-size: 100% 100%;
   transition: background-size 0.45s ease-out;
+}
+
+.privacy-note {
+  max-width: 560px;
+  margin: 14px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
 }
 
 .dropzone-title {
