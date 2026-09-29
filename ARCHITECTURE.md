@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v1.4.2._
+_Current as of v1.5.0._
 
 ## Overview
 
@@ -160,10 +160,23 @@ per chunk, which free-tier rate limits don't allow for longer PDFs.
 
 `pipeline.py` defaults — `chunk_size=800`, `chunk_overlap=150`, `top_k=4` —
 come from the two-configuration evaluation in `DECISIONS.md` (small 300-char
-chunks refused 4 of 5 answerable questions and misread a table; 1000-char
-chunks answered all 5). They are not exposed in the UI; `pipeline.ingest()`
+chunks refused 4 of 5 answerable questions; 1000-char chunks answered all
+5), and are backed by the measured retrieval evaluation (`retrieval_eval.py`:
+Hit@4 0.59 at 300 characters vs 0.77 at 800 for the app's retriever). They are not exposed in the UI; `pipeline.ingest()`
 and `pipeline.answer()` accept overrides, which `evaluate.py` uses to rerun
 the comparison against any PDF.
+
+## Evaluation Tooling
+
+Two scripts sit beside the app and call the pipeline modules directly:
+
+- `evaluate.py` — answer-level: runs a question set through the full
+  pipeline (LLM included) under two chunk/top-k configurations and
+  reports answers and sources side by side.
+- `retrieval_eval.py` — retrieval-level, no LLM: Hit@1/Hit@4/MRR@10 on a
+  labelled question set for a BM25 baseline, MiniLM, BGE-small and a
+  BM25 + MiniLM hybrid (reciprocal rank fusion), across three chunk
+  settings. Results: `reports/retrieval_eval.md`.
 
 ## Failure Handling
 

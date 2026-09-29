@@ -8,7 +8,7 @@ are dated and note what actually happened.
 > **STATUS (2026-09-29, v1.4.2): feature-complete for the task brief and
 > deployed.** All core requirements plus the three optional enhancements
 > (multiple documents, follow-up questions, document summaries) are built,
-> covered by 48 automated tests, and verified in a real browser against
+> covered by 54 automated tests, and verified in a real browser against
 > the live deployment at https://ai-doc-assistant.duckdns.org. The
 > application accepts any PDF supplied at runtime — no document-specific
 > content, questions, page numbers or answers are hardcoded in the
@@ -107,7 +107,7 @@ cost in US dollars; the paper only ever reports cost in FLOPs).
 |---|---|---|
 | Transformer's architecture basis | ❌ "could not find" (wrong — it's in the doc) | ✅ Correct, cites page 2 |
 | Encoder layer count | ❌ "could not find" (wrong) | ✅ "6 identical layers", cites page 3 |
-| EN-FR BLEU score | ⚠️ Answered **41.0** — factually wrong (table value is 41.8), likely a mis-read from a chunk that split Table 2 mid-row | ✅ Correct: **41.8**, cites page 8 |
+| EN-FR BLEU score | ⚠️ Answered **41.0** — originally recorded as a mis-read; **corrected 2026-09-29:** page 8's own text says 41.0 (see note below) | ✅ **41.8**, cites page 8 |
 | Training time/hardware | ❌ "could not find" (wrong) | ✅ "3.5 days on eight GPUs", cites page 1 |
 | Who proposed the attention mechanisms | ❌ "could not find" (wrong) | ✅ "Noam", cites page 1 |
 | USD training cost (genuinely unanswerable) | ✅ Correctly refused | ✅ Correctly refused |
@@ -124,6 +124,17 @@ with accurate page citations, at the cost of retrieving less tightly-
 scoped passages (visible in the generally lower per-passage similarity
 scores in config B — more passages retrieved, avg. relevance per passage
 is lower, but the *set* contains what's needed).
+
+> **Correction (2026-09-29).** The BLEU explanation above is wrong. While
+> labelling a retrieval test set page by page, the extracted text of page 8
+> turned out to say, in Section 6.1: *"On the WMT 2014 English-to-French
+> translation task, our big model achieves a BLEU score of 41.0"*, while the
+> abstract (page 1) and Table 2 (page 8) say 41.8 — an inconsistency in the
+> paper itself. Config A's 41.0 was therefore grounded in real document
+> text, not a mis-read of a split table; the question simply had two
+> answers in the document. The other finding stands: Config A wrongly
+> refused 4 of 5 answerable questions, and that is what the default chunk
+> size is based on.
 
 **Practical takeaway:** on a real, structurally complex document, chunk
 size clearly matters more than top_k for answer quality — too-small
@@ -259,3 +270,19 @@ date, what changed, why, and what (if anything) failed._
   - The model's markdown list markers (`* item`, `- item`) are now shown as `•` bullets, since answers are rendered as plain text.
   - 48 tests pass; the full browser regression (citations, margin notes, mobile notes, follow-ups, refusal, multi-document, summary, reload) passed with 0 console errors.
 - **2026-09-29** — Final documentation pass for v1.4.2. The status block at the top of this file was still dated 2026-09-19; it is now current, with the one open item (the organizer-provided document) stated explicitly. `AI_USAGE.md` gained entries for the v1.4.1–v1.4.2 work and an updated "must be able to explain" list (multi-document retrieval, follow-ups, document retention, frontend safety). `README.md` Usage now says uploaded PDFs are not saved. `CONTRIBUTING.md`'s manual checks now include answer scroll position and a long conversation on a phone (the v1.4.2 mobile bug would have been caught by it). `DESIGN.md` records the reading-order rule, and `IMPLEMENTATION_PLAN.md` lists document retention among post-plan additions. On the server: the four intermediate deploy tags (v1.2.0–v1.4.0) were removed, keeping the running v1.4.2 image, v1.4.1 for rollback, and the original full build (the base the thin update images are built on). Disk use barely changed, which is expected: those images only differed by thin code layers on a shared base. The thin-update Dockerfile was moved from `/tmp` (which can be cleared on reboot) to the home directory, so future deploys don't depend on a temporary file.
+- **2026-09-29** — Measured retrieval evaluation (`retrieval_eval.py`), plus a correction to an earlier finding.
+  - **Why.** Compared with the other AI/ML tasks in the brief, which report metrics such as F1, accuracy or a baseline comparison, this project's evaluation was qualitative: 6 questions judged right or wrong. The brief's criteria name "retrieval quality", so retrieval is now measured directly with standard IR metrics. The app itself was not changed.
+  - **Method.** 39 questions on the 15-page paper, each labelled with its gold page and a ≤45-character evidence phrase copied verbatim from that page (`sample_docs/retrieval_eval_set.json`). A chunk is relevant only if it contains the phrase; the script (and a test) refuse to run if any phrase is missing from its page. Phrases are no longer than the smallest overlap tested (50), so every one fits inside at least one chunk in every configuration, and the script confirmed none was unreachable. Four retrievers were run on identical chunks: a BM25 keyword baseline (implemented in ~20 lines, no new dependency), MiniLM (the app's model), BGE-small (`BAAI/bge-small-en-v1.5`, with its query instruction prefix), and a hybrid of BM25 + MiniLM using reciprocal rank fusion (k=60). Each was run at three chunk settings (300/50, 800/150, 1000/200). Metrics: Hit@1, Hit@4 (4 = the app's top_k), MRR@10 and Page-Hit@4. No LLM calls, so the run is deterministic and free.
+  - **Results at the default 800/150** (full tables, per-question misses and timings in `reports/retrieval_eval.md`, chart in `reports/retrieval_eval.svg`):
+
+    | Retriever | Hit@1 | Hit@4 | MRR@10 |
+    |---|---|---|---|
+    | BM25 | 0.64 | 0.87 | 0.75 |
+    | MiniLM (app) | 0.38 | 0.77 | 0.56 |
+    | BGE-small | 0.59 | 0.77 | 0.68 |
+    | Hybrid | 0.56 | 0.82 | 0.70 |
+
+    300-character chunks were the worst setting for every retriever (MiniLM Hit@4 0.59), which independently supports the chunk-size default. **The keyword baseline beat the app's embedding model on this set.** The honest explanation is partly the set itself: the questions were written while reading the document, so they share its wording, which favours BM25. BGE-small puts the right chunk first far more often than MiniLM (Hit@1 0.59 vs 0.38) but takes about 2.3× longer to embed. The hybrid lifts MiniLM's Hit@4 from 0.77 to 0.82 and MRR from 0.56 to 0.70. With 39 questions, one question equals 0.026, so gaps under about 0.05 are noise.
+  - **Decision: the app's retriever is unchanged.** Hybrid retrieval is the evidence-backed next step. It was not switched on now for two reasons. First, this set's wording likely overstates keyword search, and the change should be confirmed on the organizers' document. Second, switching would alter the single-document path that the answer-level A/B evaluation and its guard tests depend on. The change is small: `retrieval_eval.reciprocal_rank_fusion` plus the BM25 class is all it needs.
+  - **Correction to the 2026-09-19 finding.** Labelling page 8 showed that the paper itself says "our big model achieves a BLEU score of 41.0" in Section 6.1, while the abstract and Table 2 say 41.8. Config A's "41.0" was grounded in the document, not a mis-read of a split table as recorded at the time. The Real-World Validation section, README and architecture notes are corrected; the claim that small chunks caused false refusals (4 of 5) is unaffected and is now also supported by the Hit@4 numbers above.
+  - 6 new tests (54 total): BM25 ranking, RRF fusion, metric arithmetic, and a check that every label in the set is backed by its page.

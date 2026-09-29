@@ -102,9 +102,11 @@ a PR:
 - If you changed anything in `static/`, bump the `?v=` query on the
   `style.css` and `app.js` URLs in `static/index.html`, so browsers that
   cached the previous release fetch the new files.
-- If your change touches retrieval, chunking, or the prompt, run
-  `evaluate.py` against a document and question set and check the comparison
-  report for regressions:
+- If your change touches retrieval or chunking, run `python
+  retrieval_eval.py` and compare Hit@4 / MRR with
+  `reports/retrieval_eval.md` (no API key needed). If it touches the prompt,
+  also run `evaluate.py` against a document and question set and check the
+  comparison report for regressions:
   ```bash
   python evaluate.py --pdf sample_docs/sample.pdf --questions sample_docs/dev_eval_questions.json
   ```

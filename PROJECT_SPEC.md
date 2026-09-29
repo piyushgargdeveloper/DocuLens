@@ -5,7 +5,7 @@ small, self-contained RAG (Retrieval-Augmented Generation) tool for asking
 grounded questions about uploaded PDFs. It started as a single-document
 tool; the optional enhancements listed originally (multiple documents,
 conversation history, document summary) have since been built and are now
-part of the requirements below. _Current as of v1.4.2._
+part of the requirements below. _Current as of v1.5.0._
 
 ## Problem
 
@@ -83,8 +83,10 @@ Build a document question-answering tool that:
 
 - **Document processing** — text is extracted per page and chunks keep page
   (and document) metadata; verified with valid, invalid and empty PDFs.
-- **Retrieval quality** — for on-topic questions the retrieved passages are
-  relevant, checked across both evaluated configurations.
+- **Retrieval quality** — measured, not eyeballed: Hit@1/Hit@4/MRR@10 on a
+  39-question labelled set against a BM25 baseline and a second embedding
+  model, across three chunk settings (`retrieval_eval.py`,
+  `reports/retrieval_eval.md`).
 - **Grounding** — answers use only retrieved content; the unanswerable
   question produces the explicit refusal, not a hallucination.
 - **Source handling** — every answer shows its supporting passages with
@@ -99,5 +101,5 @@ Build a document question-answering tool that:
 - Python, PyMuPDF, sentence-transformers, FAISS, a configurable
   OpenAI-compatible LLM API, and a FastAPI backend serving a static
   HTML/CSS/JS frontend.
-- Must actually run and be tested before being called done — 48 automated
+- Must actually run and be tested before being called done — 54 automated
   tests plus real-browser checks of the deployed app (see `README.md`).
