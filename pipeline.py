@@ -1,12 +1,16 @@
 """Phase 6: orchestration — wires loader, chunker, embedder, vector store, LLM."""
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
+
+import numpy as np
 
 import embedder
 import llm_client
 from chunker import chunk_pages
 from pdf_loader import load_pdf_pages
+from retriever import bm25_scores, ranking, reciprocal_rank_fusion
 from vector_store import VectorStore
 
 DEFAULT_CHUNK_SIZE = 800
@@ -87,19 +91,31 @@ def ingest(
 
 
 def retrieve(queries: list[str], states: list[IndexState], top_k: int = DEFAULT_TOP_K) -> list[dict]:
-    """Search every document with every query and return the overall top_k
-    passages, best first. A passage found by more than one query keeps its
-    highest score. With one query and one document this is exactly
-    `store.search(query, top_k)`."""
+    """Hybrid retrieval over every given document at once.
+
+    For each query, all chunks of all documents are ranked twice -- by BM25
+    (keyword statistics taken over the documents together, so scores are
+    comparable) and by embedding cosine similarity -- and every ranking is
+    fused with reciprocal rank fusion. With one document and one query this is
+    exactly the "Hybrid" retriever measured in `retrieval_eval.py`.
+
+    Each returned passage carries its cosine similarity to the closest query
+    as `score`, so the UI's "similarity" stays meaningful.
+    """
+    chunks = [c for state in states for c in state.store.chunks]
+    if not chunks:
+        return []
     query_vectors = embedder.embed(queries)
-    best: dict[tuple, dict] = {}
-    for state in states:
-        for vector in query_vectors:
-            for hit in state.store.search(vector, top_k=top_k):
-                key = (hit.get("doc"), hit["page"], hit["text"])
-                if key not in best or hit["score"] > best[key]["score"]:
-                    best[key] = hit
-    return sorted(best.values(), key=lambda h: h["score"], reverse=True)[:top_k]
+    term_indexes = [state.store.terms for state in states]
+    rankings, similarities = [], []
+    for query, vector in zip(queries, query_vectors):
+        similarity = np.concatenate([state.store.embeddings @ vector for state in states])
+        similarities.append(similarity)
+        rankings.append(ranking(bm25_scores(query, term_indexes)))
+        rankings.append(ranking(similarity))
+    best_similarity = np.max(similarities, axis=0)
+    order = reciprocal_rank_fusion(rankings)[:top_k]
+    return [{**chunks[i], "score": float(best_similarity[i])} for i in order]
 
 
 def is_overview_question(question: str) -> bool:
@@ -120,6 +136,34 @@ def overview_sample(index_state: IndexState, count: int = OVERVIEW_CHUNKS) -> li
     return lead + [rest[int(i * step)] for i in range(picks)]
 
 
+def gather_sources(
+    question: str,
+    index_state: IndexState | list[IndexState],
+    top_k: int = DEFAULT_TOP_K,
+    history: list[dict] | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """The passages the LLM will be given for this question, and the recent
+    turns to send with it. Shared by answer() and answer_stream().
+
+    A whole-document question ("what is this paper about?") is routed to an
+    overview sample of each document; anything else goes through hybrid
+    retrieval, which for a follow-up also searches "previous question + this
+    one", so "what about its moons?" still finds the passages about "it".
+    """
+    states = index_state if isinstance(index_state, list) else [index_state]
+    recent = (history or [])[-MAX_HISTORY_TURNS:]
+
+    if is_overview_question(question):
+        per_doc = max(3, OVERVIEW_CHUNKS // len(states))
+        sources = [{**c, "score": None} for state in states for c in overview_sample(state, per_doc)]
+        return sources, recent
+
+    queries = [question]
+    if recent:
+        queries.append(f"{recent[-1]['question']} {question}")
+    return retrieve(queries, states, top_k=top_k), recent
+
+
 def answer(
     question: str,
     index_state: IndexState | list[IndexState],
@@ -129,31 +173,25 @@ def answer(
     """Retrieve relevant chunks and generate a grounded answer.
 
     `index_state` may be one document or a list of documents. `history` is a
-    list of earlier {"question", "answer"} turns, oldest first. For a
-    follow-up, retrieval also runs on the previous question + this one, so
-    "what about its moons?" can still find the passages about "it".
-
-    A whole-document question ("what is this paper about?") is routed to an
-    overview sample of each document instead of similarity search.
+    list of earlier {"question", "answer"} turns, oldest first.
 
     Returns {"answer": str, "sources": [{"page", "text", "score", ["doc"]}, ...]}.
     """
-    states = index_state if isinstance(index_state, list) else [index_state]
-    recent = (history or [])[-MAX_HISTORY_TURNS:]
-
-    if is_overview_question(question):
-        per_doc = max(3, OVERVIEW_CHUNKS // len(states))
-        sources = [{**c, "score": None} for state in states for c in overview_sample(state, per_doc)]
-        answer_text = llm_client.ask(question, sources, history=recent)
-        return {"answer": answer_text, "sources": sources}
-
-    queries = [question]
-    if recent:
-        queries.append(f"{recent[-1]['question']} {question}")
-
-    sources = retrieve(queries, states, top_k=top_k)
+    sources, recent = gather_sources(question, index_state, top_k, history)
     answer_text = llm_client.ask(question, sources, history=recent)
     return {"answer": answer_text, "sources": sources}
+
+
+def answer_stream(
+    question: str,
+    index_state: IndexState | list[IndexState],
+    top_k: int = DEFAULT_TOP_K,
+    history: list[dict] | None = None,
+) -> tuple[list[dict], Iterator[str]]:
+    """Like answer(), but returns the sources at once and the answer as an
+    iterator of text pieces, so the UI can show passages and text as they come."""
+    sources, recent = gather_sources(question, index_state, top_k, history)
+    return sources, llm_client.ask_stream(question, sources, history=recent)
 
 
 def summarize(index_state: IndexState) -> dict:

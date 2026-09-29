@@ -38,14 +38,23 @@ def test_retrieve_merges_documents_and_keeps_top_k_best_first(sample_pdf_bytes):
     assert [h["score"] for h in hits] == sorted((h["score"] for h in hits), reverse=True)
 
 
-def test_single_document_retrieval_matches_the_plain_vector_search(sample_pdf_bytes):
-    # Guards the documented evaluate.py results: one query + one document must
-    # behave exactly as before multi-document support was added.
-    state = pipeline.ingest(sample_pdf_bytes)
+def test_single_document_retrieval_is_the_measured_hybrid(sample_pdf_bytes):
+    # Guards the documented retrieval_eval.py numbers: for one query and one
+    # document the app must rank exactly like the "Hybrid" retriever measured
+    # there (RRF of the BM25 ranking and the embedding ranking).
+    from retriever import BM25, ranking, reciprocal_rank_fusion
+
+    state = pipeline.ingest(sample_pdf_bytes, chunk_size=200, chunk_overlap=20)
     query = "Which planet has the largest mass?"
-    direct = state.store.search(pipeline.embedder.embed([query])[0], top_k=3)
-    assert pipeline.retrieve([query], [state], top_k=3) == direct
-    assert "doc" not in direct[0]
+    texts = [c["text"] for c in state.store.chunks]
+    dense = state.store.embeddings @ pipeline.embedder.embed([query])[0]
+    expected = reciprocal_rank_fusion([ranking(BM25(texts).scores(query)), ranking(dense)])[:3]
+
+    got = pipeline.retrieve([query], [state], top_k=3)
+    assert [c["text"] for c in got] == [texts[i] for i in expected]
+    # The score shown in the UI is still the passage's cosine similarity.
+    assert got[0]["score"] == pytest.approx(float(dense[expected[0]]), abs=1e-5)
+    assert "doc" not in got[0]
 
 
 def test_follow_up_retrieval_also_uses_the_previous_question(sample_pdf_bytes, monkeypatch):

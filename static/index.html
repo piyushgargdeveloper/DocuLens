@@ -13,7 +13,7 @@
   <meta property="og:url" content="https://ai-doc-assistant.duckdns.org/" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect x=%226%22 y=%223%22 width=%2220%22 height=%2226%22 rx=%222%22 fill=%22%231B2A41%22/><rect x=%2210%22 y=%2213%22 width=%2212%22 height=%224%22 fill=%22%23FFE45C%22/></svg>" />
   <!-- ?v= changes with each release so browsers holding an older cached copy fetch the new file. -->
-  <link rel="stylesheet" href="/static/style.css?v=1.8.0" />
+  <link rel="stylesheet" href="/static/style.css?v=2.0.0" />
 </head>
 <body data-view="upload">
   <header class="topbar">
@@ -35,7 +35,10 @@
         <span id="add-status" class="add-status" hidden><span class="spinner" aria-hidden="true"></span> Reading PDF&hellip;</span>
         <label for="add-file-input" class="btn btn-quiet" id="add-btn" tabindex="0">Add another PDF</label>
         <input id="add-file-input" type="file" accept="application/pdf" hidden />
-        <button id="remove-btn" class="btn btn-text" type="button">Remove all</button>
+        <div class="shelf-links">
+          <button id="export-btn" class="btn btn-text" type="button" disabled>Export conversation</button>
+          <button id="remove-btn" class="btn btn-text" type="button">Remove all</button>
+        </div>
       </div>
     </aside>
 
@@ -66,18 +69,32 @@
       <section id="chat-view" class="sheet sheet-chat" hidden>
         <div id="messages" class="messages" aria-live="polite"></div>
 
-        <form id="ask-form" class="ask-form">
-          <label for="question-input" class="visually-hidden">Your question</label>
-          <textarea
-            id="question-input"
-            class="question-input"
-            placeholder="Ask about your documents"
-            maxlength="1000"
-            rows="1"
-            required
-          ></textarea>
-          <span id="char-count" class="char-count" aria-live="polite" hidden></span>
-          <button type="submit" class="btn btn-primary" id="ask-btn" disabled>Ask</button>
+        <form id="ask-form" class="composer">
+          <div class="composer-box">
+            <label for="add-file-input" class="composer-icon" id="attach-btn" tabindex="0" title="Add a PDF" aria-label="Add a PDF">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M14.5 9.5l-5.6 5.6a3.3 3.3 0 0 1-4.7-4.7l6.2-6.2a2.2 2.2 0 0 1 3.1 3.1l-6.1 6.1a1.1 1.1 0 0 1-1.6-1.6l5.5-5.5" /></svg>
+            </label>
+            <label for="question-input" class="visually-hidden">Your question</label>
+            <textarea
+              id="question-input"
+              class="question-input"
+              placeholder="Ask about your documents"
+              maxlength="1000"
+              rows="1"
+              required
+            ></textarea>
+            <button type="submit" class="composer-send" id="ask-btn" disabled aria-label="Ask" title="Ask (Enter)">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4M4.5 9.5 10 4l5.5 5.5" /></svg>
+            </button>
+            <button type="button" class="composer-stop" id="stop-btn" hidden aria-label="Stop answering" title="Stop (Esc)">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /></svg>
+            </button>
+          </div>
+          <div class="composer-meta">
+            <span id="scope-label" class="scope-label"></span>
+            <span class="composer-hint"><kbd>Enter</kbd> to ask &middot; <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line &middot; <kbd>/</kbd> to type</span>
+            <span id="char-count" class="char-count" aria-live="polite" hidden></span>
+          </div>
         </form>
       </section>
     </main>
@@ -86,12 +103,15 @@
   <footer class="site-footer">
     <span>Made with <span class="heart" role="img" aria-label="love">❤️</span> by Piyush Garg</span>
     <a href="https://github.com/piyushgargog/ai-document-assistant" target="_blank" rel="noopener">GitHub</a>
-    <a href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v1.8.0" target="_blank" rel="noopener" title="Release notes">v1.8.0</a>
+    <a href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.0.0" target="_blank" rel="noopener" title="Release notes">v2.0.0</a>
   </footer>
 
   <template id="doc-item-template">
     <li class="doc-item">
-      <svg class="doc-icon" viewBox="0 0 16 20" aria-hidden="true"><path d="M1 1h9l5 5v13H1z" /></svg>
+      <label class="doc-check" title="Search this document">
+        <input type="checkbox" class="doc-include" checked />
+        <svg class="doc-icon" viewBox="0 0 16 20" aria-hidden="true"><path d="M1 1h9l5 5v13H1z" /><path class="tick" d="M4.5 12l2.5 2.5 4.5-5" /></svg>
+      </label>
       <div class="doc-info">
         <span class="doc-name"></span>
         <span class="doc-meta"></span>
@@ -115,6 +135,6 @@
     </li>
   </template>
 
-  <script src="/static/app.js?v=1.8.0"></script>
+  <script src="/static/app.js?v=2.0.0"></script>
 </body>
 </html>

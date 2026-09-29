@@ -37,7 +37,18 @@ jobs:
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        # The runner's Python ships an outdated setuptools with known
+        # advisories; upgrade it so the audit below checks what we'd deploy.
+        run: |
+          pip install --upgrade pip "setuptools>=83"
+          pip install -r requirements-dev.txt
+
+      - name: Audit installed dependencies for known vulnerabilities
+        # Fails the build (and so blocks merging) if any installed package has
+        # a published advisory -- the same environment the tests just ran in.
+        run: |
+          pip install pip-audit
+          pip-audit --progress-spinner off
 
       - name: Run tests
         run: pytest -v

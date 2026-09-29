@@ -3,6 +3,8 @@
 import faiss
 import numpy as np
 
+from retriever import TermIndex
+
 
 class VectorStore:
     """Wraps a FAISS IndexFlatIP over normalized embeddings (cosine similarity)."""
@@ -11,6 +13,8 @@ class VectorStore:
         if len(chunks) != embeddings.shape[0]:
             raise ValueError("chunks and embeddings must be the same length")
         self.chunks = chunks
+        self.embeddings = embeddings  # kept for scoring every chunk (hybrid ranking)
+        self.terms = TermIndex([c["text"] for c in chunks])  # BM25 statistics
         dim = embeddings.shape[1]
         self.index = faiss.IndexFlatIP(dim)
         self.index.add(embeddings)

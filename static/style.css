@@ -391,6 +391,47 @@ body:not([data-view="chat"]) .shelf {
   border-bottom: 1px solid var(--rule);
 }
 
+.doc-check {
+  position: relative;
+  display: inline-grid;
+  cursor: pointer;
+}
+
+.doc-include {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.doc-check:focus-within .doc-icon {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.doc-icon .tick {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.doc-include:not(:checked) + .doc-icon {
+  opacity: 0.4;
+}
+
+.doc-include:not(:checked) + .doc-icon .tick {
+  display: none;
+}
+
+.doc-item:has(.doc-include:not(:checked)) .doc-name {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: var(--rule);
+}
+
 .doc-icon {
   width: 14px;
   height: 18px;
@@ -433,6 +474,19 @@ body:not([data-view="chat"]) .shelf {
   align-items: stretch;
   gap: 6px;
   padding-top: 4px;
+}
+
+.shelf-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.shelf-links .btn-text:disabled {
+  opacity: 0.4;
+  cursor: default;
+  text-decoration: none;
 }
 
 .shelf-actions .btn-text {
@@ -728,28 +782,45 @@ button.cite:hover {
   }
 }
 
-/* ---------- Ask form ---------- */
+/* ---------- Composer (the bottom bar) ----------
+   One bordered box holds attach, the question and send/stop, like a line on
+   a form; the line under it says what will be searched and how to operate it. */
 
-.ask-form {
+.composer {
   flex: none;
+  padding: 12px clamp(16px, 4vw, 48px) 12px;
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.composer-box {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
-  padding: 14px clamp(16px, 4vw, 48px) 18px;
-  border-top: 1px solid var(--rule);
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--ink-soft);
+  border-radius: 6px;
+  background: var(--paper);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.composer-box:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
 }
 
 .question-input {
   flex: 1;
+  min-width: 0;
   font-family: inherit;
   font-size: var(--text-md);
+  line-height: 1.5;
   color: var(--ink);
-  background: var(--paper);
-  padding: 10px 12px;
-  border: 1px solid var(--ink-soft);
-  border-radius: 3px;
+  background: transparent;
+  padding: 7px 4px;
+  border: none;
   resize: none;
-  max-height: 140px;
+  max-height: 168px; /* about 6 lines, then it scrolls */
 }
 
 .question-input::placeholder {
@@ -758,8 +829,150 @@ button.cite:hover {
 
 .question-input:focus {
   outline: none;
-  border-color: var(--ink);
-  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.question-input:disabled {
+  opacity: 0.6;
+}
+
+.composer-icon,
+.composer-send,
+.composer-stop {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, opacity 0.15s, transform 0.08s;
+}
+
+.composer-icon svg,
+.composer-send svg,
+.composer-stop svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.composer-icon {
+  color: var(--ink-soft);
+  background: none;
+}
+
+.composer-icon:hover {
+  color: var(--ink);
+  background: var(--desk);
+}
+
+.composer-send {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.composer-send:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.composer-send:active:not(:disabled),
+.composer-stop:active {
+  transform: translateY(1px);
+}
+
+.composer-stop {
+  color: var(--ink);
+  background: var(--desk);
+  border: 1px solid var(--ink-soft);
+}
+
+.composer-stop svg {
+  fill: currentColor;
+  stroke: none;
+}
+
+.composer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-top: 7px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.scope-label {
+  font-weight: 700;
+}
+
+.scope-label.scope-empty {
+  color: var(--error);
+}
+
+.composer-hint {
+  margin-left: auto;
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 0.72rem;
+  padding: 0 4px;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--desk);
+  color: var(--ink);
+}
+
+/* A streamed answer shows a blinking caret where the next words will land. */
+.msg-text.streaming::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--ink);
+  animation: caret 1s steps(1) infinite;
+}
+
+@keyframes caret {
+  50% { opacity: 0; }
+}
+
+.answer-stopped {
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* A PDF dragged over the conversation: the sheet shows it will be added. */
+body.drop-target .sheet-chat {
+  outline: 2px dashed var(--ink);
+  outline-offset: -8px;
+}
+
+body.drop-target .sheet-chat::after {
+  content: "Drop the PDF to add it";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--paper) 80%, transparent);
+  pointer-events: none;
+}
+
+.sheet-chat {
+  position: relative;
 }
 
 /* Starter questions the LLM proposes after reading the document. */
@@ -888,6 +1101,23 @@ body.busy .follow-up {
 /* ---------- Small screens: shelf becomes a strip above the conversation ---------- */
 
 @media (max-width: 860px) {
+  .composer {
+    padding: 8px 10px 8px;
+  }
+
+  .composer-hint {
+    display: none; /* no physical keyboard to hint at */
+  }
+
+  /* The composer's attach button adds documents; the shelf keeps its links. */
+  #add-btn {
+    display: none;
+  }
+
+  .shelf-links {
+    flex-wrap: nowrap;
+  }
+
   .topbar {
     padding: 12px 16px;
   }
@@ -940,8 +1170,7 @@ body.busy .follow-up {
     padding-top: 0;
   }
 
-  .shelf-actions .btn-text {
-    align-self: auto;
+  .shelf-links {
     margin-left: auto;
   }
 }

@@ -32,7 +32,13 @@ For context before reporting an issue, see the "Security notes" section of
 - Strict Content-Security-Policy and other security headers on every
   response; HSTS over HTTPS; API docs endpoints disabled; no third-party
   requests from the page (fonts are self-hosted).
-- Per-client rate limits on LLM-backed endpoints and uploads.
+- Per-client rate limits on LLM-backed endpoints and uploads, and caps on
+  concurrent LLM calls and ingestions.
+- Cross-site API requests are refused (Origin / Sec-Fetch-Site), the
+  session cookie is `__Host-` prefixed over HTTPS, and JSON bodies are
+  capped at 16KB.
+- CI runs `pip-audit`; a known vulnerability in any installed dependency
+  fails the build and blocks merging.
 - Uploads are checked for a real PDF signature, filenames are sanitised, and
   oversized documents are rejected before embedding.
 - The upload screen discloses that questions and relevant passages are sent

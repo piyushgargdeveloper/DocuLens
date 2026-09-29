@@ -1,8 +1,9 @@
 /**
  * AI Document Assistant -- frontend logic.
  *
- * Talks to the FastAPI backend (main.py) at /api/ingest, /api/ask,
- * /api/summary, /api/remove and /api/session. All dynamic content
+ * Talks to the FastAPI backend (main.py) at /api/ingest, /api/ask/stream
+ * (server-sent events), /api/summary, /api/suggestions, /api/remove and
+ * /api/session. All dynamic content
  * (questions, answers, document text, filenames) is inserted with
  * textContent / text nodes, never innerHTML, so nothing from a document or
  * the model can inject markup into the page.
@@ -28,6 +29,10 @@ const messagesEl = document.getElementById("messages");
 const askForm = document.getElementById("ask-form");
 const questionInput = document.getElementById("question-input");
 const askBtn = document.getElementById("ask-btn");
+const stopBtn = document.getElementById("stop-btn");
+const attachBtn = document.getElementById("attach-btn");
+const scopeLabel = document.getElementById("scope-label");
+const exportBtn = document.getElementById("export-btn");
 
 const docItemTemplate = document.getElementById("doc-item-template");
 const sourceItemTemplate = document.getElementById("source-item-template");
@@ -296,21 +301,53 @@ const FOLLOW_UPS = [
   ["Go deeper", "Give more detail on that, using only details that appear in the passages. If the documents say nothing more, say so."],
 ];
 
-function buildFollowUps() {
+function buildActions(answer, { followUps }) {
   const bar = document.createElement("div");
   bar.className = "answer-actions";
-  for (const [label, question] of FOLLOW_UPS) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "btn btn-text follow-up";
-    button.textContent = label;
-    button.addEventListener("click", () => askQuestion(question, label));
-    bar.appendChild(button);
+  if (followUps) {
+    for (const [label, question] of FOLLOW_UPS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-text follow-up";
+      button.textContent = label;
+      button.addEventListener("click", () => askQuestion(question, label));
+      bar.appendChild(button);
+    }
   }
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "btn btn-text copy-answer";
+  copy.textContent = "Copy";
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(answerAsText(answer));
+      copy.textContent = "Copied";
+    } catch (err) {
+      copy.textContent = "Couldn't copy";
+    }
+    setTimeout(() => (copy.textContent = "Copy"), 1600);
+  });
+  bar.appendChild(copy);
   return bar;
 }
 
-function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources", followUps = false } = {}) {
+/** The answer as plain text, with its sources listed underneath. */
+function answerAsText(answer) {
+  const lines = [plain(answer.text).trim()];
+  if (answer.sources.length) {
+    lines.push("", "Sources:");
+    for (const src of answer.sources) {
+      const where = src.doc ? `${src.doc}, page ${src.page}` : `Page ${src.page}`;
+      const excerpt = src.text.replace(/\s+/g, " ").trim();
+      lines.push(`- ${where}: "${excerpt.length > 160 ? excerpt.slice(0, 160) + "…" : excerpt}"`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/** Lay out an answer (text + margin notes) inside `el`; the text is filled in
+ *  by updateAnswer, repeatedly while streaming. */
+function startAnswer(el, sources, { heading, sourcesLabel = "Sources" } = {}) {
   el.className = "msg msg-assistant answer msg-enter";
   el.removeAttribute("role");
   el.replaceChildren();
@@ -323,20 +360,42 @@ function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources", foll
     h.textContent = heading;
     main.appendChild(h);
   }
-
   const notes = buildNotes(sources, sourcesLabel);
   const body = document.createElement("p");
   body.className = "msg-text";
-  renderAnswerText(body, text, notes);
   main.appendChild(body);
-  if (followUps && !text.trim().startsWith(REFUSAL)) main.appendChild(buildFollowUps());
   el.appendChild(main);
-
   if (notes) {
     el.classList.add("has-notes");
-    main.appendChild(notes.toggle);
     el.appendChild(notes.panel);
   }
+  return { el, main, body, notes, sources: sources || [], text: "" };
+}
+
+function updateAnswer(answer) {
+  answer.body.replaceChildren();
+  renderAnswerText(answer.body, answer.text, answer.notes);
+}
+
+function finishAnswer(answer, { followUps = false, stopped = false } = {}) {
+  answer.body.classList.remove("streaming");
+  updateAnswer(answer);
+  if (stopped) {
+    const note = document.createElement("p");
+    note.className = "answer-stopped";
+    note.textContent = "Stopped. This partial answer isn't used for follow-up questions.";
+    answer.main.appendChild(note);
+  }
+  const refused = answer.text.trim().startsWith(REFUSAL);
+  if (!stopped && answer.text) answer.main.appendChild(buildActions(answer, { followUps: followUps && !refused }));
+  if (answer.notes) answer.main.appendChild(answer.notes.toggle);
+}
+
+function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources", followUps = false } = {}) {
+  const answer = startAnswer(el, sources, { heading, sourcesLabel });
+  answer.text = text;
+  finishAnswer(answer, { followUps });
+  return answer;
 }
 
 function showFailure(el, text) {
@@ -349,11 +408,41 @@ function showFailure(el, text) {
 
 let shownDocIds = new Set();
 
+// Documents the reader has unticked; questions search all the others.
+const excludedDocIds = new Set();
+let loadedDocs = [];
+
+function includedDocIds() {
+  return loadedDocs.map((d) => d.id).filter((id) => !excludedDocIds.has(id));
+}
+
+function syncScope() {
+  const total = loadedDocs.length;
+  const included = includedDocIds().length;
+  if (total === 0) scopeLabel.textContent = "";
+  else if (included === 0) scopeLabel.textContent = "Tick a document to search";
+  else if (total === 1) scopeLabel.textContent = "Searching 1 document";
+  else if (included === total) scopeLabel.textContent = `Searching all ${total} documents`;
+  else scopeLabel.textContent = `Searching ${included} of ${total} documents`;
+  scopeLabel.classList.toggle("scope-empty", total > 0 && included === 0);
+  syncQuestionState();
+}
+
 function renderDocuments(documents) {
+  loadedDocs = documents;
+  for (const id of [...excludedDocIds]) if (!documents.some((d) => d.id === id)) excludedDocIds.delete(id);
   docList.replaceChildren();
   for (const doc of documents) {
     const node = docItemTemplate.content.cloneNode(true);
     if (!shownDocIds.has(doc.id)) node.querySelector(".doc-item").classList.add("doc-enter");
+    const include = node.querySelector(".doc-include");
+    include.checked = !excludedDocIds.has(doc.id);
+    include.setAttribute("aria-label", `Search ${doc.filename}`);
+    include.addEventListener("change", () => {
+      if (include.checked) excludedDocIds.delete(doc.id);
+      else excludedDocIds.add(doc.id);
+      syncScope();
+    });
     node.querySelector(".doc-name").textContent = doc.filename;
     node.querySelector(".doc-name").title = doc.filename;
     node.querySelector(".doc-meta").textContent =
@@ -366,7 +455,10 @@ function renderDocuments(documents) {
     docList.appendChild(node);
   }
   shownDocIds = new Set(documents.map((d) => d.id));
+  syncScope();
   if (documents.length === 0) {
+    transcript.length = 0;
+    syncExport();
     messagesEl.replaceChildren();
     fileInput.value = "";
     showView("upload");
@@ -474,10 +566,12 @@ async function summarizeDoc(doc, button) {
   }
   // The heading already says "Summary of …"; drop the model's own "Summary:" lead-in.
   const summary = data.summary.replace(/^\s*\**(?:document\s+)?summary\**:?\**\s*/i, "");
-  showAnswer(pending, summary, data.sources, {
+  const answer = showAnswer(pending, summary, data.sources, {
     heading: `Summary of ${data.filename}`,
     sourcesLabel: "Passages used",
   });
+  transcript.push({ question: `Summary of ${data.filename}`, answer: answer.text, sources: answer.sources });
+  syncExport();
   scrollToStart(pending);
 }
 
@@ -510,6 +604,7 @@ function openPickerOnKey(label, input) {
   });
 }
 openPickerOnKey(addBtn, addFileInput);
+openPickerOnKey(attachBtn, addFileInput);
 openPickerOnKey(dropzone, fileInput);
 
 // Drag-and-drop on the dropzone, with a visual hover state.
@@ -534,36 +629,131 @@ removeBtn.addEventListener("click", async () => {
 });
 
 let busy = false;
+let activeStream = null; // AbortController of the answer being streamed
+
+// Question/answer pairs of this page view, for Export conversation.
+const transcript = [];
+
+function setBusy(on) {
+  busy = on;
+  document.body.classList.toggle("busy", on);
+  stopBtn.hidden = !on;
+  askBtn.hidden = on;
+  questionInput.disabled = on;
+  if (!on) {
+    syncQuestionState();
+    questionInput.focus({ preventScroll: true });
+  }
+}
+
+/** Read a server-sent-events body, calling onEvent(name, data) per event. */
+async function readEvents(response, onEvent) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      let name = "message";
+      let data = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event: ")) name = line.slice(7);
+        else if (line.startsWith("data: ")) data += line.slice(6);
+      }
+      if (data) onEvent(name, JSON.parse(data));
+    }
+  }
+}
 
 /** `shown` is what appears in the conversation when it differs from the
  *  instruction sent (the follow-up buttons send a fuller instruction). */
 async function askQuestion(question, shown = question) {
   question = question.trim();
   if (!question || busy) return;
-  busy = true;
-  document.body.classList.add("busy");
+  const docIds = includedDocIds();
+  if (docIds.length === 0) {
+    syncScope();
+    return;
+  }
 
   const asked = addUser(shown);
   questionInput.value = "";
   autoGrow();
-  askBtn.disabled = true;
-  questionInput.disabled = true;
-
+  setBusy(true);
   const pending = addPending("Searching your documents…");
-  const data = await api("/api/ask", { question });
 
-  if (data.error) {
-    showFailure(pending, data.error);
+  const controller = new AbortController();
+  activeStream = controller;
+  const body = { question };
+  if (docIds.length < loadedDocs.length) body.doc_ids = docIds;
+
+  let answer = null;
+  let failed = null;
+  let frame = 0;
+  const render = () => {
+    frame = 0;
+    if (answer) updateAnswer(answer);
+  };
+
+  try {
+    const response = await fetch("/api/ask/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!response.ok || !(response.headers.get("content-type") || "").startsWith("text/event-stream")) {
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (err) {
+        data = {};
+      }
+      failed = data.error || `The request failed (HTTP ${response.status}). Try again in a moment.`;
+    } else {
+      await readEvents(response, (name, data) => {
+        if (name === "sources") {
+          answer = startAnswer(pending, data);
+          answer.body.classList.add("streaming");
+          scrollToStart(asked);
+        } else if (name === "token" && answer) {
+          answer.text += data.text;
+          if (!frame) frame = requestAnimationFrame(render);
+        } else if (name === "error") {
+          failed = data.error;
+        }
+      });
+    }
+  } catch (err) {
+    if (err.name !== "AbortError") failed = "Couldn't reach the server. Check your connection and try again.";
+  }
+  if (frame) cancelAnimationFrame(frame);
+
+  const stopped = controller.signal.aborted;
+  if (answer && (answer.text || stopped)) {
+    finishAnswer(answer, { followUps: true, stopped });
+    if (failed) addError(failed);
+    else if (!stopped) {
+      transcript.push({ question: shown, answer: answer.text, sources: answer.sources });
+      syncExport();
+    }
+  } else if (stopped) {
+    pending.remove();
   } else {
-    showAnswer(pending, data.answer, data.sources, { followUps: true });
+    showFailure(pending, failed || "Something went wrong. Please try again.");
   }
   scrollToStart(asked);
+  activeStream = null;
+  setBusy(false);
+}
 
-  busy = false;
-  document.body.classList.remove("busy");
-  questionInput.disabled = false;
-  syncQuestionState();
-  questionInput.focus({ preventScroll: true });
+function stopAnswer() {
+  if (activeStream) activeStream.abort();
 }
 
 askForm.addEventListener("submit", (e) => {
@@ -591,7 +781,7 @@ const MAX_QUESTION_CHARS = Number(questionInput.maxLength) || 1000;
 
 function syncQuestionState() {
   const length = questionInput.value.length;
-  askBtn.disabled = questionInput.value.trim() === "";
+  askBtn.disabled = questionInput.value.trim() === "" || (loadedDocs.length > 0 && includedDocIds().length === 0);
   charCount.hidden = length < MAX_QUESTION_CHARS * 0.8;
   charCount.textContent = `${length} / ${MAX_QUESTION_CHARS}`;
   charCount.classList.toggle("at-limit", length >= MAX_QUESTION_CHARS);
@@ -610,7 +800,92 @@ questionInput.addEventListener("input", syncQuestionState);
   for (const turn of data.history) {
     lastQuestion = addUser(turn.question);
     showAnswer(addNote(""), turn.answer, []);
+    transcript.push({ question: turn.question, answer: turn.answer, sources: [] });
   }
+  syncExport();
   if (lastQuestion) scrollToStart(lastQuestion);
   else addNote("Your documents are still loaded. Ask anything about them.");
 })();
+
+// ---------- v2: stop, export, keyboard, drop anywhere ----------
+
+stopBtn.addEventListener("click", stopAnswer);
+
+function syncExport() {
+  exportBtn.disabled = transcript.length === 0;
+}
+
+/** Download the conversation as Markdown, each answer with its sources. */
+function exportConversation() {
+  const date = new Date().toISOString().slice(0, 10);
+  const lines = [
+    "# Conversation — AI Document Assistant",
+    "",
+    `Exported ${date}. Documents: ${loadedDocs.map((d) => d.filename).join(", ") || "none"}.`,
+  ];
+  for (const turn of transcript) {
+    lines.push("", `## ${turn.question}`, "", plain(turn.answer).trim());
+    if (turn.sources.length) {
+      lines.push("", "**Sources**", "");
+      for (const src of turn.sources) {
+        const where = src.doc ? `${src.doc}, page ${src.page}` : `Page ${src.page}`;
+        const excerpt = src.text.replace(/\s+/g, " ").trim();
+        lines.push(`- ${where}: "${excerpt.length > 200 ? excerpt.slice(0, 200) + "…" : excerpt}"`);
+      }
+    }
+  }
+  const blob = new Blob([lines.join("\n") + "\n"], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `conversation-${date}.md`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+exportBtn.addEventListener("click", exportConversation);
+
+// "/" jumps to the question box (unless already typing); Esc stops an answer.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && busy) {
+    stopAnswer();
+    return;
+  }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+  if (e.key === "/" && !typing && document.body.dataset.view === "chat" && !questionInput.disabled) {
+    e.preventDefault();
+    questionInput.focus();
+  }
+});
+
+// Drop a PDF anywhere on the page. On the start screen it becomes the first
+// document; in the conversation it's added. Dropping elsewhere never makes the
+// browser navigate away to the PDF.
+let dragDepth = 0;
+function hasFiles(e) {
+  return [...(e.dataTransfer?.types || [])].includes("Files");
+}
+window.addEventListener("dragenter", (e) => {
+  if (!hasFiles(e)) return;
+  dragDepth += 1;
+  if (document.body.dataset.view === "chat") document.body.classList.add("drop-target");
+});
+window.addEventListener("dragleave", () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) document.body.classList.remove("drop-target");
+});
+window.addEventListener("dragover", (e) => {
+  if (hasFiles(e)) e.preventDefault();
+});
+window.addEventListener("drop", (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove("drop-target");
+  if (e.target.closest && e.target.closest("#dropzone")) return; // handled by the dropzone itself
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  if (document.body.dataset.view === "chat") uploadAdditional(file);
+  else if (document.body.dataset.view === "upload") uploadFirst(file);
+});

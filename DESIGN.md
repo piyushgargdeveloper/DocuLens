@@ -61,6 +61,14 @@ it; while the documents are searched, a thin ink line reads across under
 scroll, nothing loops except the reading line, and all of it switches off
 under reduced motion.
 
+The composer is the one control the reader returns to on every turn, so
+it is set like the answer line of a form: a single ruled box holding attach,
+the question and send, with a quiet line beneath saying which documents will
+be searched and how to operate it (hidden on phones, which have no keys to
+hint at). Send turns into Stop while an answer streams in; a blinking ink
+caret marks where the next words will land, and the text reads from its
+first line — the page does not chase the words downward.
+
 Suggested questions and the "Explain more simply" / "Go deeper" actions
 are set as quiet ink text and outlined serif prompts — the same register as
 the conversation, never as coloured chips — so they read as part of the page.

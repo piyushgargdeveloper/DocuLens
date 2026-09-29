@@ -5,9 +5,11 @@ POST is enough for one chat-completion call, and keeps the dependency
 footprint and the amount of "magic" small (see DECISIONS.md).
 """
 
+import json
 import os
 import re
 import time
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -233,11 +235,7 @@ def _chat(messages: list[dict], timeout: int) -> str:
     try:
         text = _complete(messages, model, api_key, base_url, timeout)
     except LLMRateLimitError:
-        fallback = os.environ.get("LLM_FALLBACK_MODEL", "").strip()
-        if not fallback or fallback == model:
-            raise
-        print(f"LLM model {model} is rate limited; answering with fallback model {fallback}")
-        model = fallback
+        model = _fallback_or_raise(model)
         text = _complete(messages, model, api_key, base_url, timeout)
     if not text:
         # Reasoning models occasionally return an empty final message; one
@@ -248,13 +246,90 @@ def _chat(messages: list[dict], timeout: int) -> str:
     return text
 
 
-def _complete(messages: list[dict], model: str, api_key: str, base_url: str, timeout: int) -> str:
-    """POST one chat completion to one model, with 429 retry/backoff."""
+def ask_stream(
+    question: str,
+    passages: list[dict],
+    timeout: int = 30,
+    history: list[dict] | None = None,
+) -> Iterator[str]:
+    """Like ask(), but yields the answer in pieces as the model writes it."""
+    return _chat_stream(build_messages(question, passages, history), timeout)
+
+
+def _chat_stream(messages: list[dict], timeout: int) -> Iterator[str]:
+    """Stream one chat completion, with the same rate-limit fallback and
+    empty-reply handling as _chat(). Errors before the first piece raise from
+    the first next() call, so callers can still report them cleanly."""
+    api_key, base_url, model = _config()
+    try:
+        response = _post(messages, model, api_key, base_url, timeout, stream=True)
+    except LLMRateLimitError:
+        model = _fallback_or_raise(model)
+        response = _post(messages, model, api_key, base_url, timeout, stream=True)
+
+    produced = False
+    try:
+        for piece in _stream_deltas(response):
+            if piece:
+                produced = True
+                yield piece
+    finally:
+        response.close()
+    if not produced:
+        text = _complete(messages, model, api_key, base_url, timeout)
+        if not text:
+            raise LLMRequestError("The LLM returned an empty answer.")
+        yield text
+
+
+def _stream_deltas(response) -> Iterator[str]:
+    """Text pieces from an OpenAI-compatible server-sent-events stream."""
+    # SSE is UTF-8 by definition, but providers send `text/event-stream`
+    # without a charset, and requests then falls back to ISO-8859-1 -- which
+    # turned "self‑attention" into "selfâ€‘attention" and broke page citations
+    # (found in v2.0.0 testing).
+    response.encoding = "utf-8"
+    for line in response.iter_lines(decode_unicode=True):
+        if not line or not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if data == "[DONE]":
+            return
+        try:
+            event = json.loads(data)
+        except ValueError:
+            continue
+        if "error" in event:
+            raise LLMRequestError("The LLM API reported an error while streaming.")
+        try:
+            content = event["choices"][0]["delta"].get("content")
+        except (KeyError, IndexError, TypeError, AttributeError):
+            continue
+        if content:
+            yield content
+
+
+def _fallback_or_raise(model: str) -> str:
+    fallback = os.environ.get("LLM_FALLBACK_MODEL", "").strip()
+    if not fallback or fallback == model:
+        raise LLMRateLimitError(
+            "The LLM API is rate limiting requests and asked to wait longer "
+            "than this app will hold for. Please try again shortly."
+        )
+    print(f"LLM model {model} is rate limited; answering with fallback model {fallback}")
+    return fallback
+
+
+def _post(messages: list[dict], model: str, api_key: str, base_url: str, timeout: int, stream: bool = False):
+    """POST one chat completion request to one model, with 429 retry/backoff.
+    Returns the successful response (streaming or not)."""
     payload = {
         "model": model,
         "messages": messages,
         "temperature": 0.0,
     }
+    if stream:
+        payload["stream"] = True
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -263,13 +338,14 @@ def _complete(messages: list[dict], model: str, api_key: str, base_url: str, tim
     for attempt in range(MAX_RETRIES + 1):
         try:
             response = requests.post(
-                f"{base_url}/chat/completions", json=payload, headers=headers, timeout=timeout
+                f"{base_url}/chat/completions", json=payload, headers=headers, timeout=timeout, stream=stream
             )
         except requests.RequestException as exc:
             raise LLMRequestError(f"LLM API call failed: {exc}") from exc
 
         if response.status_code == 429:
             wait_seconds = _retry_wait_seconds(response)
+            response.close()
             if wait_seconds is None or attempt == MAX_RETRIES:
                 raise LLMRateLimitError(
                     "The LLM API is rate limiting requests and asked to wait longer "
@@ -280,9 +356,15 @@ def _complete(messages: list[dict], model: str, api_key: str, base_url: str, tim
         try:
             response.raise_for_status()
         except requests.RequestException as exc:
+            response.close()
             raise LLMRequestError(f"LLM API call failed: {exc}") from exc
-        break
+        return response
+    raise LLMRateLimitError("The LLM API is rate limiting requests.")  # not reached
 
+
+def _complete(messages: list[dict], model: str, api_key: str, base_url: str, timeout: int) -> str:
+    """One non-streaming chat completion from one model; the reply text."""
+    response = _post(messages, model, api_key, base_url, timeout)
     try:
         data = response.json()
         return (data["choices"][0]["message"].get("content") or "").strip()
