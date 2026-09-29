@@ -33,10 +33,18 @@ const docItemTemplate = document.getElementById("doc-item-template");
 const sourceItemTemplate = document.getElementById("source-item-template");
 
 function showView(view) {
+  const changed = document.body.dataset.view !== view;
   document.body.dataset.view = view;
-  uploadView.hidden = view !== "upload";
-  indexingView.hidden = view !== "indexing";
-  chatView.hidden = view !== "chat";
+  const views = { upload: uploadView, indexing: indexingView, chat: chatView };
+  for (const [name, el] of Object.entries(views)) {
+    el.hidden = name !== view;
+    // Fade the newly shown view in; restart the animation on every switch.
+    el.classList.remove("view-enter");
+    if (changed && name === view) {
+      void el.offsetWidth;
+      el.classList.add("view-enter");
+    }
+  }
 }
 
 /**
@@ -90,6 +98,7 @@ function scrollToStart(el) {
 }
 
 function append(el) {
+  el.classList.add("msg-enter");
   messagesEl.appendChild(el);
   scrollToBottom();
   return el;
@@ -231,9 +240,10 @@ function buildNotes(sources, label) {
   list.className = "slips";
   panel.appendChild(list);
 
-  for (const src of sources) {
+  for (const [i, src] of sources.entries()) {
     const node = sourceItemTemplate.content.cloneNode(true);
     const slip = node.querySelector(".slip");
+    slip.style.setProperty("--i", i);
     slip.dataset.page = src.page;
     slip.dataset.doc = src.doc || "";
     node.querySelector(".slip-page").textContent =
@@ -259,7 +269,7 @@ function buildNotes(sources, label) {
 
 /** Turn a pending message into a finished answer (or add a new one). */
 function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources" } = {}) {
-  el.className = "msg msg-assistant answer";
+  el.className = "msg msg-assistant answer msg-enter";
   el.removeAttribute("role");
   el.replaceChildren();
 
@@ -294,10 +304,13 @@ function showFailure(el, text) {
 
 // ---------- Documents ----------
 
+let shownDocIds = new Set();
+
 function renderDocuments(documents) {
   docList.replaceChildren();
   for (const doc of documents) {
     const node = docItemTemplate.content.cloneNode(true);
+    if (!shownDocIds.has(doc.id)) node.querySelector(".doc-item").classList.add("doc-enter");
     node.querySelector(".doc-name").textContent = doc.filename;
     node.querySelector(".doc-name").title = doc.filename;
     node.querySelector(".doc-meta").textContent =
@@ -309,6 +322,7 @@ function renderDocuments(documents) {
     remove.addEventListener("click", () => removeDoc(doc.id));
     docList.appendChild(node);
   }
+  shownDocIds = new Set(documents.map((d) => d.id));
   if (documents.length === 0) {
     messagesEl.replaceChildren();
     fileInput.value = "";
@@ -473,8 +487,8 @@ askForm.addEventListener("submit", async (e) => {
   }
   scrollToStart(asked);
 
-  askBtn.disabled = false;
   questionInput.disabled = false;
+  syncQuestionState();
   questionInput.focus({ preventScroll: true });
 });
 
@@ -492,6 +506,18 @@ function autoGrow() {
   questionInput.style.height = `${questionInput.scrollHeight}px`;
 }
 questionInput.addEventListener("input", autoGrow);
+
+const charCount = document.getElementById("char-count");
+const MAX_QUESTION_CHARS = Number(questionInput.maxLength) || 1000;
+
+function syncQuestionState() {
+  const length = questionInput.value.length;
+  askBtn.disabled = questionInput.value.trim() === "";
+  charCount.hidden = length < MAX_QUESTION_CHARS * 0.8;
+  charCount.textContent = `${length} / ${MAX_QUESTION_CHARS}`;
+  charCount.classList.toggle("at-limit", length >= MAX_QUESTION_CHARS);
+}
+questionInput.addEventListener("input", syncQuestionState);
 
 // Restore documents and conversation after a page reload (the session
 // cookie outlives the page). Sources aren't kept server-side, so restored

@@ -287,3 +287,15 @@ understood and explainable without AI help (the task requires it):
   project's own logs was wrong: the "misread BLEU 41.0" is actually printed
   on page 8 of the paper. The claim was corrected where it appeared, with
   the original log entries kept and annotated.
+
+## Credit, Version and Motion (v1.6.0)
+
+- At the user's request the AI coding assistant added an author credit,
+  repository link and version to the UI, plus animation and polish. It
+  kept the motion inside the existing design direction (only in response
+  to an action, off under reduced motion) and recorded the credit's heart
+  as a deliberate exception in `DESIGN.md`, rather than quietly breaking
+  the "yellow means evidence" rule.
+- It made the version a single source of truth with a test, since an
+  earlier release had shipped a stale-cache bug caused by a forgotten
+  version bump.

@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.5.0
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.6.0
 
 ## What it does
 
@@ -39,9 +39,11 @@ those passages) so answers stay traceable back to the source text.
   become highlighter-yellow tabs, and clicking one highlights the exact
   passage it points to. On a phone the notes fold under the answer.
 - A keyboard-accessible, mobile-responsive reading interface with light
-  and dark themes — no frontend framework, no build step, just static
-  HTML/CSS/JS served by the backend. The design rationale is in
-  [`DESIGN.md`](DESIGN.md).
+  and dark themes, restrained motion that responds to what you do (and
+  switches off under reduced-motion settings), and a footer with the
+  author, repository link and running version — no frontend framework, no
+  build step, just static HTML/CSS/JS served by the backend. The design
+  rationale is in [`DESIGN.md`](DESIGN.md).
 - Page-aware text extraction, so every retrieved passage keeps its
   source page number.
 - Answers are grounded: the LLM is instructed to answer only from

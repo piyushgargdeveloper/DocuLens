@@ -83,7 +83,7 @@ optional enhancements (Phase 10) only happen if 0–9 are solid.
 - Run the same question set under **two** chunking/retrieval configurations (e.g. small chunks/low top-k vs. larger chunks/higher top-k); record observed differences in `DECISIONS.md`.
 - Also exercise: invalid/empty PDF, missing API key.
 - **Depends on**: Phase 7 (needs the full app running).
-- _Status:_ done (see `DECISIONS.md`, Real-World Validation); plus a committed `pytest` suite (54 tests) and CI.
+- _Status:_ done (see `DECISIONS.md`, Real-World Validation); plus a committed `pytest` suite (56 tests) and CI.
 
 ## Phase 9 — README + Final Review
 - Write `README.md`: overview, architecture summary, setup, how to run, usage, testing/results, limitations.
@@ -116,6 +116,6 @@ Added later, each with its reasoning in `DECISIONS.md`:
   labelled set, BM25 baseline vs two embedding models vs hybrid.
 - Document retention: uploads are never written to disk; extracted text is
   deleted on removal or after 2 hours idle, enforced by a background task.
-- `pytest` suite (54 tests) with GitHub Actions CI, CodeQL and Dependabot.
+- `pytest` suite (56 tests) with GitHub Actions CI, CodeQL and Dependabot.
 - Docker image (CPU-only PyTorch) deployed to AWS EC2 behind Nginx with
   HTTPS.

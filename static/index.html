@@ -5,12 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI Document Assistant</title>
   <meta name="description" content="Ask questions about your PDFs and see the page every answer came from." />
+  <meta name="theme-color" content="#E3E8EE" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0F141B" media="(prefers-color-scheme: dark)" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="AI Document Assistant" />
+  <meta property="og:description" content="Ask questions about your PDFs. Every answer shows the page and passage it came from." />
+  <meta property="og:url" content="https://ai-doc-assistant.duckdns.org/" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect x=%226%22 y=%223%22 width=%2220%22 height=%2226%22 rx=%222%22 fill=%22%231B2A41%22/><rect x=%2210%22 y=%2213%22 width=%2212%22 height=%224%22 fill=%22%23FFE45C%22/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" />
   <!-- ?v= changes with each release so browsers holding an older cached copy fetch the new file. -->
-  <link rel="stylesheet" href="/static/style.css?v=1.4.2" />
+  <link rel="stylesheet" href="/static/style.css?v=1.6.0" />
 </head>
 <body data-view="upload">
   <header class="topbar">
@@ -68,16 +74,23 @@
           <textarea
             id="question-input"
             class="question-input"
-            placeholder="Ask a question about your documents"
+            placeholder="Ask about your documents"
             maxlength="1000"
             rows="1"
             required
           ></textarea>
-          <button type="submit" class="btn btn-primary" id="ask-btn">Ask</button>
+          <span id="char-count" class="char-count" aria-live="polite" hidden></span>
+          <button type="submit" class="btn btn-primary" id="ask-btn" disabled>Ask</button>
         </form>
       </section>
     </main>
   </div>
+
+  <footer class="site-footer">
+    <span>Made with <span class="heart" role="img" aria-label="love">❤️</span> by Piyush Garg</span>
+    <a href="https://github.com/piyushgargog/ai-document-assistant" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v1.6.0" target="_blank" rel="noopener" title="Release notes">v1.6.0</a>
+  </footer>
 
   <template id="doc-item-template">
     <li class="doc-item">
@@ -105,6 +118,6 @@
     </li>
   </template>
 
-  <script src="/static/app.js?v=1.4.2"></script>
+  <script src="/static/app.js?v=1.6.0"></script>
 </body>
 </html>

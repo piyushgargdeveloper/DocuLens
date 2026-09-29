@@ -122,7 +122,7 @@ body {
   width: 100%;
   max-width: 1360px;
   margin: 0 auto;
-  padding: 0 24px 24px;
+  padding: 0 24px 14px;
 }
 
 .desk {
@@ -258,6 +258,11 @@ body:not([data-view="chat"]) .shelf {
   background: none;
   color: var(--ink);
   line-height: 1.3;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s, transform 0.08s;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn-primary {
@@ -487,12 +492,67 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .msg-pending .msg-text {
-  animation: breathe 1.4s ease-in-out infinite;
+  position: relative;
+  display: inline-block;
+  padding-bottom: 6px;
+  overflow: hidden;
 }
 
-@keyframes breathe {
-  50% { opacity: 0.45; }
+.msg-pending .msg-text::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 40%;
+  border-radius: 1px;
+  background: var(--ink-soft);
+  animation: reading 1.2s ease-in-out infinite;
 }
+
+@keyframes reading {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+
+/* Motion that answers an action: a new question, answer or document rises
+   into place; an answer's margin notes follow one after another. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.msg-enter,
+.doc-enter {
+  animation: rise 0.24s ease-out both;
+}
+
+.answer.has-notes .slip {
+  animation: rise 0.3s ease-out both;
+  animation-delay: calc(var(--i, 0) * 60ms + 120ms);
+}
+
+/* Switching between upload, reading and conversation. */
+.view-enter {
+  animation: fade 0.22s ease-out both;
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The title page arrives once, in reading order. */
+#upload-view > .intro-title,
+#upload-view > .intro-body,
+#upload-view > .dropzone,
+#upload-view > .privacy-note {
+  animation: rise 0.4s ease-out both;
+}
+
+#upload-view > .intro-body { animation-delay: 70ms; }
+#upload-view > .dropzone { animation-delay: 140ms; }
+#upload-view > .privacy-note { animation-delay: 200ms; }
 
 .msg-error {
   color: var(--error);
@@ -675,6 +735,63 @@ button.cite:hover {
   box-shadow: 0 0 0 1px var(--ink);
 }
 
+/* Shown only near the 1000-character limit. */
+.char-count {
+  align-self: center;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.char-count.at-limit {
+  color: var(--error);
+}
+
+/* ---------- Footer ---------- */
+
+.site-footer {
+  flex: none;
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 24px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.site-footer a {
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+.site-footer a:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+
+/* The one colour outside the highlighter: the credit's heart, by request
+   (see DESIGN.md). It beats once when the credit is hovered. */
+.heart {
+  display: inline-block;
+}
+
+.site-footer span:hover > .heart {
+  animation: beat 0.6s ease-in-out;
+}
+
+@keyframes beat {
+  30% { transform: scale(1.25); }
+  60% { transform: scale(0.95); }
+}
+
 /* ---------- Small screens: shelf becomes a strip above the conversation ---------- */
 
 @media (max-width: 860px) {
@@ -685,7 +802,13 @@ button.cite:hover {
   .layout {
     flex-direction: column;
     gap: 10px;
-    padding: 0 12px 12px;
+    padding: 0 12px 8px;
+  }
+
+  .site-footer {
+    padding: 0 16px 8px;
+    gap: 2px 14px;
+    font-size: 0.78rem;
   }
 
   .title-page {
@@ -736,6 +859,7 @@ button.cite:hover {
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
     transition: none !important;
   }
 

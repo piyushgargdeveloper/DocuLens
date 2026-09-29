@@ -27,6 +27,10 @@ load_dotenv()
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+# The release version. static/index.html repeats it (asset ?v= query, footer,
+# release link) and tests/test_api.py fails if the two ever disagree.
+APP_VERSION = "1.6.0"
+
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
 MAX_DOCS_PER_SESSION = 5
@@ -58,7 +62,7 @@ async def lifespan(app: FastAPI):
         sweeper.cancel()
 
 
-app = FastAPI(title="AI Document Assistant", lifespan=lifespan)
+app = FastAPI(title="AI Document Assistant", version=APP_VERSION, lifespan=lifespan)
 
 
 @app.middleware("http")

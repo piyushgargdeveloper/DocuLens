@@ -50,10 +50,21 @@ filenames, page numbers — plainly and legibly. The empty screen is a title
 page: a large serif statement several times the body size, set left,
 without a card around it.
 
-Motion is almost absent, which lets the one motion land: when a citation is
-clicked, a highlighter stroke sweeps across its passage in the margin. The
-same stroke appears when a PDF is dragged over the drop area. Everything else
-changes state instantly.
+Motion only ever answers something the reader did, and never decorates.
+The signature motion is the highlighter: when a citation is clicked, a stroke
+sweeps across its passage in the margin, and the same stroke appears when a
+PDF is dragged over the drop area. Around it, quieter motion shows what just
+changed: a new question, answer or document rises a few pixels into place;
+an answer's margin notes follow one after another, as if being pinned beside
+it; while the documents are searched, a thin ink line reads across under
+"Searching…". The title page arrives in reading order whenever it is shown. Nothing moves on
+scroll, nothing loops except the reading line, and all of it switches off
+under reduced motion.
+
+The footer credits the author ("Made with ❤️ by Piyush Garg"), links the
+repository and names the release. Its heart is the one colour outside the
+highlighter — a deliberate exception, kept small and in the footer, where it
+can't be mistaken for evidence.
 
 **Is not:** a chat app, a SaaS dashboard, or a dark-mode "AI" product with
 glowing accents. Kills on sight: speech bubbles, blue primary buttons,
