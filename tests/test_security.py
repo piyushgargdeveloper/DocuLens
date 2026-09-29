@@ -47,7 +47,7 @@ def test_page_loads_nothing_from_other_origins(client):
     css = client.get("/static/style.css").text
     assert not re.search(r"(src|href)=\"https?://(?!github\.com)", html)  # only the footer links leave the site
     assert "https://" not in css
-    assert client.get("/static/fonts/source-serif-4-variable.woff2").status_code == 200
+    assert client.get("/static/fonts/inter-variable.woff2").status_code == 200
 
 
 # --- Uploads -----------------------------------------------------------------

@@ -343,3 +343,15 @@ understood and explainable without AI help (the task requires it):
 - It reported that half of the answer-level re-run came from the fallback
   model because the main model's quota ran out, rather than presenting the
   results as the main model's.
+
+## Version 2.1.0
+
+- The user said the earlier redesign hadn't visibly improved the UI or the
+  footer. The AI coding assistant offered three concrete directions with
+  mock-ups. The user chose "Modern product", and the assistant rewrote the
+  stylesheet, the markup and `DESIGN.md` to match.
+- It kept every element ID the JavaScript depends on, so behaviour and
+  tests were unchanged. It checked the result with headless-browser
+  screenshots (desktop light and dark, and a 390px phone). Those
+  screenshots showed the start page running under the footer on a phone,
+  which it fixed before release.

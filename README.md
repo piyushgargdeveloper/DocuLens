@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.0.0
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.1.0
 
 ## What it does
 
@@ -57,14 +57,16 @@ those passages) so answers stay traceable back to the source text.
 - **Document summary**: one click per document for a short, page-cited
   summary.
 - A page reload keeps your documents and conversation.
-- **Evidence in the margin**: on a wide screen every answer shows its
-  source passages as notes beside it; page references in the answer
-  become highlighter-yellow tabs, and clicking one highlights the exact
-  passage it points to. On a phone the notes fold under the answer.
-- A keyboard-accessible, mobile-responsive reading interface with light
-  and dark themes, restrained motion that responds to what you do (and
-  switches off under reduced-motion settings), and a footer with the
-  author, repository link and running version — no frontend framework, no
+- **Sources beside every answer**: on a wide screen every answer shows its
+  source passages as cards beside it; page references in the answer
+  become clickable `p. 3` chips, and clicking one lights up the exact
+  passage it points to. On a phone the cards fold under the answer.
+- A clean, modern interface (v2.1.0): documents sidebar card, chat-style
+  conversation with a floating composer, light and dark themes, a
+  keyboard-accessible, mobile-responsive layout, restrained motion that
+  responds to what you do (and switches off under reduced-motion
+  settings), and a full footer with the author credit, repository and
+  release links, a privacy dialog and the running version — no frontend framework, no
   build step, just static HTML/CSS/JS served by the backend. The design
   rationale is in [`DESIGN.md`](DESIGN.md).
 - Page-aware text extraction, so every retrieved passage keeps its

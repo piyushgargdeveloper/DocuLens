@@ -13,9 +13,10 @@ For context before reporting an issue, see the "Security notes" section of
 `README.md`. In short:
 
 - Retrieved document passages are fenced in the LLM prompt and declared
-  untrusted data, so instructions embedded in an uploaded document should not
-  be obeyed as instructions (verified against injection payloads — see
-  `DECISIONS.md`).
+  untrusted data, and every question prompt ends with a reminder of that
+  rule after the passages, so instructions embedded in an uploaded document
+  should not be obeyed (verified against injection payloads on both the
+  main and the fallback model — see `DECISIONS.md`).
 - The LLM API key is read only from the environment (`LLM_API_KEY`), never
   logged, rendered, or committed. `.env` is gitignored; only `.env.example`
   (placeholders) is tracked.

@@ -5,39 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI Document Assistant</title>
   <meta name="description" content="Ask questions about your PDFs and see the page every answer came from." />
-  <meta name="theme-color" content="#E3E8EE" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#0F141B" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0B0B0F" media="(prefers-color-scheme: dark)" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="AI Document Assistant" />
   <meta property="og:description" content="Ask questions about your PDFs. Every answer shows the page and passage it came from." />
   <meta property="og:url" content="https://ai-doc-assistant.duckdns.org/" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect x=%226%22 y=%223%22 width=%2220%22 height=%2226%22 rx=%222%22 fill=%22%231B2A41%22/><rect x=%2210%22 y=%2213%22 width=%2212%22 height=%224%22 fill=%22%23FFE45C%22/></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%235B5BD6%22/><path d=%22M10 8h8l5 5v11H10z%22 fill=%22white%22/><rect x=%2213%22 y=%2216%22 width=%227%22 height=%222.4%22 rx=%221%22 fill=%22%23FFD43B%22/></svg>" />
   <!-- ?v= changes with each release so browsers holding an older cached copy fetch the new file. -->
-  <link rel="stylesheet" href="/static/style.css?v=2.0.0" />
+  <link rel="stylesheet" href="/static/style.css?v=2.1.0" />
 </head>
 <body data-view="upload">
   <header class="topbar">
-    <span class="wordmark">
-      <svg class="wordmark-icon" viewBox="0 0 32 32" aria-hidden="true">
-        <rect x="6" y="3" width="20" height="26" rx="2" />
-        <rect class="mark" x="10" y="13" width="12" height="4" />
-      </svg>
-      AI Document Assistant
-    </span>
+    <a class="brand" href="/" aria-label="AI Document Assistant, home">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" class="logo-bg" /><path d="M10 8h8l5 5v11H10z" class="logo-page" /><rect x="13" y="16" width="7" height="2.4" rx="1" class="logo-mark" /></svg>
+      </span>
+      <span class="brand-name">AI Document Assistant</span>
+    </a>
+    <nav class="topbar-links" aria-label="Project links">
+      <a class="pill-link" href="https://github.com/piyushgargog/ai-document-assistant" target="_blank" rel="noopener">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21" /></svg>
+        <span>GitHub</span>
+      </a>
+    </nav>
   </header>
 
   <div class="layout">
     <!-- Documents in this session (shown once at least one is loaded) -->
     <aside class="shelf" aria-label="Your documents">
-      <h2 class="shelf-title">Your documents</h2>
+      <div class="shelf-head">
+        <h2 class="shelf-title">Documents</h2>
+        <span id="add-status" class="add-status" hidden><span class="spinner" aria-hidden="true"></span> Reading&hellip;</span>
+      </div>
+      <label for="add-file-input" class="btn btn-primary btn-block" id="add-btn" tabindex="0">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        Add PDF
+      </label>
+      <input id="add-file-input" type="file" accept="application/pdf" hidden />
       <ul id="doc-list" class="doc-list"></ul>
       <div class="shelf-actions">
-        <span id="add-status" class="add-status" hidden><span class="spinner" aria-hidden="true"></span> Reading PDF&hellip;</span>
-        <label for="add-file-input" class="btn btn-quiet" id="add-btn" tabindex="0">Add another PDF</label>
-        <input id="add-file-input" type="file" accept="application/pdf" hidden />
         <div class="shelf-links">
-          <button id="export-btn" class="btn btn-text" type="button" disabled>Export conversation</button>
-          <button id="remove-btn" class="btn btn-text" type="button">Remove all</button>
+          <button id="export-btn" class="btn btn-ghost" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg>
+            Export conversation
+          </button>
+          <button id="remove-btn" class="btn btn-ghost btn-danger" type="button">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+            Remove all
+          </button>
         </div>
       </div>
     </aside>
@@ -45,24 +61,49 @@
     <main class="desk">
       <!-- Empty / upload state -->
       <section id="upload-view" class="title-page">
-        <h1 class="intro-title">Every answer, with the page it came from.</h1>
+        <span class="eyebrow-badge">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /></svg>
+          Grounded answers, every page cited
+        </span>
+        <h1 class="intro-title">Ask your PDFs anything.<br />See exactly where each answer came from.</h1>
         <p class="intro-body">
-          Upload a PDF and ask it questions. Answers use only the document's
-          text, and the passage behind each one sits right beside it. If the
-          document doesn't say, you'll be told so instead of a guess.
+          Upload a document and ask questions in plain language. Answers use only
+          the document's text, with the passage behind each one right beside it.
+          If the document doesn't say, you'll be told so instead of a guess.
         </p>
         <label for="file-input" class="dropzone" id="dropzone" tabindex="0" role="button">
-          <span class="dropzone-title">Choose a PDF or drop it here</span>
-          <span class="dropzone-hint">Up to 25MB. PDFs with selectable text work best; scanned images can't be read.</span>
+          <span class="dropzone-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
+          </span>
+          <span class="dropzone-title">Drop a PDF here, or <u>browse</u></span>
+          <span class="dropzone-hint">Up to 25MB · PDFs with selectable text work best</span>
         </label>
         <input id="file-input" type="file" accept="application/pdf" hidden />
-        <p class="privacy-note">Your PDF is never saved to disk. Its text is kept in memory only while you use it, and is deleted when you remove it or after 2 hours of inactivity. To write each answer, your question and the most relevant passages are sent to the AI model provider (Groq).</p>
         <p id="upload-error" class="error-text" role="alert" hidden></p>
+        <ul class="features" aria-label="What you get">
+          <li>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z" /></svg>
+            <span><strong>Grounded</strong> Only what the document says, with page citations</span>
+          </li>
+          <li>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l4 4v12H8zM4 8v12h4" /></svg>
+            <span><strong>Multi-document</strong> Search up to five PDFs at once</span>
+          </li>
+          <li>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10V8a6 6 0 0 1 12 0v2M5 10h14v10H5z" /></svg>
+            <span><strong>Private</strong> Never saved to disk, deleted after use</span>
+          </li>
+        </ul>
+        <p class="privacy-note">Your PDF is never saved to disk. Its text is kept in memory only while you use it, and is deleted when you remove it or after 2 hours of inactivity. To write each answer, your question and the most relevant passages are sent to the AI model provider (Groq).</p>
       </section>
 
       <!-- Indexing state -->
       <section id="indexing-view" class="title-page" hidden>
-        <p class="reading-line" role="status"><span class="spinner" aria-hidden="true"></span> <span id="reading-name">Reading your PDF&hellip;</span></p>
+        <div class="reading-card">
+          <span class="spinner spinner-lg" aria-hidden="true"></span>
+          <p class="reading-line" role="status"><span id="reading-name">Reading your PDF&hellip;</span></p>
+          <p class="reading-sub">Extracting text, splitting it into passages and indexing them for search.</p>
+        </div>
       </section>
 
       <!-- Chat -->
@@ -78,7 +119,7 @@
             <textarea
               id="question-input"
               class="question-input"
-              placeholder="Ask about your documents"
+              placeholder="Ask about your documents…"
               maxlength="1000"
               rows="1"
               required
@@ -92,7 +133,7 @@
           </div>
           <div class="composer-meta">
             <span id="scope-label" class="scope-label"></span>
-            <span class="composer-hint"><kbd>Enter</kbd> to ask &middot; <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line &middot; <kbd>/</kbd> to type</span>
+            <span class="composer-hint"><kbd>Enter</kbd> to ask &middot; <kbd>Shift</kbd> + <kbd>Enter</kbd> new line &middot; <kbd>/</kbd> to type &middot; <kbd>Esc</kbd> to stop</span>
             <span id="char-count" class="char-count" aria-live="polite" hidden></span>
           </div>
         </form>
@@ -101,10 +142,37 @@
   </div>
 
   <footer class="site-footer">
-    <span>Made with <span class="heart" role="img" aria-label="love">❤️</span> by Piyush Garg</span>
-    <a href="https://github.com/piyushgargog/ai-document-assistant" target="_blank" rel="noopener">GitHub</a>
-    <a href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.0.0" target="_blank" rel="noopener" title="Release notes">v2.0.0</a>
+    <div class="footer-brand">
+      <span class="logo logo-sm" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" class="logo-bg" /><path d="M10 8h8l5 5v11H10z" class="logo-page" /><rect x="13" y="16" width="7" height="2.4" rx="1" class="logo-mark" /></svg>
+      </span>
+      <span>
+        <strong>AI Document Assistant</strong>
+        <span class="footer-tagline">Answers with the page they came from.</span>
+      </span>
+    </div>
+    <nav class="footer-links" aria-label="Footer">
+      <a href="https://github.com/piyushgargog/ai-document-assistant" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/piyushgargog/ai-document-assistant/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/piyushgargog/ai-document-assistant/issues" target="_blank" rel="noopener">Report an issue</a>
+      <button type="button" class="footer-link-button" id="privacy-btn">Privacy</button>
+    </nav>
+    <div class="footer-credit">
+      <span>Made with <span class="heart" role="img" aria-label="love">❤️</span> by <strong>Piyush Garg</strong></span>
+      <a class="version-badge" href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.1.0" target="_blank" rel="noopener" title="Release notes">v2.1.0</a>
+    </div>
   </footer>
+
+  <dialog id="privacy-dialog" class="dialog" aria-labelledby="privacy-title">
+    <h2 id="privacy-title">Privacy</h2>
+    <ul>
+      <li>Your PDF is never written to disk. Its extracted text lives only in server memory for your session.</li>
+      <li>It's deleted when you remove the document, after 2 hours of inactivity, or when the server restarts.</li>
+      <li>To write each answer, your question and the most relevant passages are sent to the AI model provider (Groq). Nothing else about you is sent.</li>
+      <li>The page loads nothing from other websites — no analytics, no trackers, no third-party fonts.</li>
+    </ul>
+    <form method="dialog"><button class="btn btn-primary" type="submit">Got it</button></form>
+  </dialog>
 
   <template id="doc-item-template">
     <li class="doc-item">
@@ -117,7 +185,10 @@
         <span class="doc-meta"></span>
       </div>
       <div class="doc-buttons">
-        <button class="btn btn-text doc-summary" type="button">Summarize</button>
+        <button class="btn btn-ghost btn-xs doc-summary" type="button">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /></svg>
+          Summarize
+        </button>
         <button class="btn-icon doc-remove" type="button">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
@@ -135,6 +206,6 @@
     </li>
   </template>
 
-  <script src="/static/app.js?v=2.0.0"></script>
+  <script src="/static/app.js?v=2.1.0"></script>
 </body>
 </html>

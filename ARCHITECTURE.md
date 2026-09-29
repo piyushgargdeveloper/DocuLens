@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v2.0.0._
+_Current as of v2.1.0._
 
 ## Overview
 
@@ -47,13 +47,14 @@ documented chunking evaluation stays valid.
    generic message; exception text is logged server-side only.
 
 2. **Frontend** (`static/index.html`, `static/style.css`, `static/app.js`)
-   Vanilla, no framework or build step. The design ("Annotated Margin",
-   `DESIGN.md`): answers are set in a reading serif with their retrieved
-   passages as margin notes beside them on wide screens (a CSS container
+   Vanilla, no framework or build step. The design ("Modern product",
+   `DESIGN.md`, v2.1.0): a documents sidebar card and a conversation card;
+   answers carry their retrieved passages as source cards beside them on
+   wide screens (a CSS container
    query on the conversation pane) and folded under them on narrow ones.
    Page references the model writes (`【file, Page 3】`, `(Page 3)`,
-   `[Page 3]`, …) are parsed into yellow "p. 3" tabs; clicking one
-   highlights the matching passage. Every dynamic string is inserted with
+   `[Page 3]`, …) are parsed into "p. 3" chips; clicking one
+   highlights the matching passage in yellow. Every dynamic string is inserted with
    `textContent` or text nodes, never `innerHTML`. All requests go through
    one `api()` helper that turns network failures and non-JSON proxy error
    pages into readable messages instead of a stuck UI. The release version
