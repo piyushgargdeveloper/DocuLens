@@ -2,9 +2,10 @@
 
 ## Supported versions
 
-This is a single-branch project — there are no maintained release
-branches or version tags. Only the latest commit on `main` is supported.
-Security fixes, if needed, will land there.
+Releases are tagged on `main` (`vX.Y.Z`, see the GitHub Releases page),
+but there are no maintained release branches. Only the latest release —
+which is what runs at https://ai-doc-assistant.duckdns.org — is
+supported. Security fixes land on `main` and ship as a new patch release.
 
 ## What this project already does
 
@@ -18,8 +19,14 @@ For context before reporting an issue, see the "Security notes" section of
 - The LLM API key is read only from the environment (`LLM_API_KEY`), never
   logged, rendered, or committed. `.env` is gitignored; only `.env.example`
   (placeholders) is tracked.
-- Uploads are capped at 25MB and questions at 1000 characters.
-- Document text is rendered literally in the UI, never as markdown or HTML.
+- The session cookie is `httponly`, `samesite=lax`, and `Secure` over HTTPS.
+- Error responses never include exception text or stack traces; details are
+  logged on the server only.
+- Resources are bounded: 25MB uploads (never read past the limit), 1000-
+  character questions, 5 documents per session, 50 sessions, 2-hour expiry.
+- Document and model text is inserted into the page with `textContent` /
+  text nodes only, never as HTML or markdown.
+- Dependencies are watched by Dependabot, and CodeQL scans every push.
 
 ## Reporting a vulnerability
 

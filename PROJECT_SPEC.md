@@ -1,85 +1,102 @@
 # Project Specification — AI Document Assistant
 
-This document defines the requirements this project is built to satisfy:
-a small, self-contained RAG (Retrieval-Augmented Generation) tool for
-asking grounded questions about a single uploaded document.
+This document defines the requirements this project is built to satisfy: a
+small, self-contained RAG (Retrieval-Augmented Generation) tool for asking
+grounded questions about uploaded PDFs. It started as a single-document
+tool; the optional enhancements listed originally (multiple documents,
+conversation history, document summary) have since been built and are now
+part of the requirements below. _Current as of v1.4.1._
 
 ## Problem
 
-A user has a single document (PDF or text) and wants to ask natural-language
-questions about its contents without reading the whole thing. Plain keyword
-search doesn't handle paraphrased questions, and a raw LLM call without the
-document will hallucinate answers not actually present in the source.
+A user has a document and wants to ask natural-language questions about its
+contents without reading the whole thing. Plain keyword search doesn't
+handle paraphrased questions, and a raw LLM call without the document will
+hallucinate answers not actually present in the source.
 
 ## Objective
 
 Build a document question-answering tool that:
-- Ingests one document supplied by the user at runtime.
-- Answers user questions using only information retrieved from that document.
-- Shows the user exactly which page/passage the answer came from.
-- Correctly refuses to answer when the document doesn't contain the answer.
+- Ingests PDFs supplied by the user at runtime (no document-specific setup).
+- Answers questions using only information retrieved from those documents.
+- Shows exactly which document, page and passage each answer came from.
+- Refuses to answer when the documents don't contain the answer.
 
 ## Scope
 
-### In scope (core requirements)
-- Single document upload (PDF, with text fallback).
-- Page-aware text extraction and chunking.
+### Core requirements
+- PDF upload with page-aware text extraction and chunking.
 - Embedding-based retrieval of relevant passages per question.
 - Grounded answer generation (LLM restricted to retrieved context).
-- Source page/passage display alongside every answer.
-- Manual test set of ≥5 questions, including ≥1 unanswerable-from-document question.
-- Two chunking/retrieval configurations compared, with results recorded in `DECISIONS.md`.
+- Source page and passage shown with every answer.
+- A test set of ≥5 questions, including ≥1 unanswerable from the document.
+- Two chunking/retrieval configurations compared, with results recorded in
+  `DECISIONS.md`.
 
-### Out of scope for the core build (future enhancements, only after core requirements work)
-- Multiple simultaneous documents.
-- Conversational context: the UI keeps the session's questions and
-  answers visible, but each question is answered independently from the
-  document — prior turns are not fed back into the model, so follow-ups
-  are not resolved against earlier answers.
-- Automatic document summary on load.
+### Enhancements (built)
+- Up to 5 documents per session, searched together, with every source
+  labeled by document and page.
+- Follow-up questions: recent turns are used to resolve references, never
+  as a source of facts.
+- A short, page-cited summary of any loaded document.
 
 ### Explicitly not building
-- User accounts, persistence across sessions, or a database beyond the in-memory FAISS index for the current document.
+- User accounts, persistence across server restarts, or a database — state
+  is an in-memory session per browser.
 - Fine-tuning any model.
-- Any UI beyond a single-page web app (see `DECISIONS.md` for the Streamlit → FastAPI + static frontend migration and why).
-- A frontend build step, framework, or bundler — the frontend is plain HTML/CSS/JS.
+- OCR for scanned/image-only PDFs.
+- A frontend framework, bundler or build step — the frontend is plain
+  HTML/CSS/JS.
 
 ## Functional Requirements
 
 | ID | Requirement | Rationale |
 |----|-------------|--------|
-| FR1 | Load one PDF (or .txt) document supplied by the user. | Core input to the whole pipeline. |
-| FR2 | Extract text per page and split into searchable chunks, retaining page numbers. | Page-level provenance is required for source citations (FR6). |
-| FR3 | Embed chunks and index them for similarity search. | Enables semantic (not just keyword) retrieval. |
+| FR1 | Load a PDF supplied by the user. | Core input to the whole pipeline. |
+| FR2 | Extract text per page and split into searchable chunks, retaining page numbers. | Page-level provenance is required for citations (FR6). |
+| FR3 | Embed chunks and index them for similarity search. | Semantic, not just keyword, retrieval. |
 | FR4 | Given a question, retrieve the top-k most relevant chunks. | Standard RAG retrieval step. |
-| FR5 | Generate an answer using an LLM, constrained to only the retrieved chunks as context. | Grounding — prevents hallucinated answers. |
-| FR6 | Display the source page number(s) and/or the exact passage text used for each answer. | Lets the user verify the answer against the original document. |
-| FR7 | If no retrieved chunk supports an answer, the assistant must say so rather than guessing. | Grounding failure mode — a conservative refusal beats a confident wrong answer. |
-| FR8 | Support switching between at least two chunking/retrieval configurations (e.g. chunk size, overlap, top-k) without code changes. | Chunking/retrieval parameters materially affect answer quality (see DECISIONS.md) and should be easy to experiment with. |
+| FR5 | Generate an answer with an LLM constrained to the retrieved chunks. | Grounding — prevents hallucinated answers. |
+| FR6 | Show the source document, page and passage text for each answer. | Lets the user verify the answer. |
+| FR7 | If no retrieved chunk supports an answer, say so rather than guess. | A conservative refusal beats a confident wrong answer. |
+| FR8 | Compare at least two chunking/retrieval configurations without code changes. | Parameters materially affect answer quality (see `DECISIONS.md`); `evaluate.py` reruns the comparison on any PDF. |
+| FR9 | Load up to 5 documents at once; search across all of them; remove one or all. | Questions often span several documents. |
+| FR10 | Resolve follow-up questions ("how many moons does it have?") from recent turns, without using earlier answers as evidence. | Natural conversation without weakening grounding. |
+| FR11 | Produce a short summary of a chosen document, citing pages. | Orientation before asking questions. |
+| FR12 | Treat document text as untrusted: instructions inside a PDF must not change the assistant's behavior. | Uploaded files are attacker-controllable input to the prompt. |
 
 ## Non-Functional Requirements
 
 | ID | Requirement |
 |----|-------------|
-| NFR1 | Code must be small, clean, and readable — this is a portfolio/demonstration project prioritizing clarity over premature production hardening. |
-| NFR2 | LLM provider/model/API key must be configurable via environment variables, not hardcoded. |
-| NFR3 | The app must run locally via `uvicorn main:app` with a documented setup (`README.md`), and be deployable via the included `Dockerfile` on any container host. |
-| NFR4 | The app must degrade gracefully (clear error message, not a crash) when: the API key is missing, the PDF is invalid/empty, or retrieval finds nothing useful. |
-| NFR5 | No fabricated test results — all testing in `DECISIONS.md`/README must reflect actual runs. |
-| NFR6 | The UI must be usable on a mobile-width viewport (no horizontal overflow, input reachable, readable text) without a separate mobile app or a CSS framework. |
+| NFR1 | Code small, clean and readable — clarity over premature production hardening. |
+| NFR2 | LLM provider, model and API key configurable via environment variables, never hardcoded. |
+| NFR3 | Runs locally via `uvicorn main:app` with the setup documented in `README.md`, and deploys via the included `Dockerfile` on any container host. |
+| NFR4 | Degrades gracefully (clear message, correct HTTP status, never a crash or a frozen screen) when the API key is missing, the PDF is invalid, the LLM fails, or a proxy returns an error page. |
+| NFR5 | No fabricated test results — everything in `DECISIONS.md`/README reflects actual runs. |
+| NFR6 | Usable at a 375px mobile width with no horizontal overflow; light and dark themes; keyboard-operable (including upload); respects reduced motion. |
+| NFR7 | Bounded resources: 25MB uploads, 1000-character questions, 5 documents per session, 50 sessions, 2-hour idle expiry. |
+| NFR8 | No document-specific content hardcoded in the application source. |
 
 ## Acceptance Criteria
 
-These are the quality dimensions a document QA/RAG tool should be judged on:
-
-- **Document processing** — PDF loads, text is extracted per page, chunks retain page metadata. Verified with a valid PDF and an invalid/empty PDF.
-- **Retrieval quality** — For on-topic questions, retrieved chunks are topically relevant to the question (spot-checked manually across both tested configurations).
-- **Grounding** — Answers only use retrieved content; the unanswerable test question produces an explicit "not found in document" style response, not a hallucinated one.
-- **Source handling** — Every answer is displayed with its supporting page number(s) and passage text.
-- **Understanding of the AI pipeline** — Pipeline stages (extraction → chunking → embedding → retrieval → generation) are implemented as distinct, inspectable, documented steps rather than hidden behind an opaque framework call; `ARCHITECTURE.md` and code comments show this understanding.
+- **Document processing** — text is extracted per page and chunks keep page
+  (and document) metadata; verified with valid, invalid and empty PDFs.
+- **Retrieval quality** — for on-topic questions the retrieved passages are
+  relevant, checked across both evaluated configurations.
+- **Grounding** — answers use only retrieved content; the unanswerable
+  question produces the explicit refusal, not a hallucination.
+- **Source handling** — every answer shows its supporting passages with
+  document, page and similarity score, and page references in the answer
+  link to the matching passage.
+- **Understanding of the AI pipeline** — extraction → chunking → embedding →
+  retrieval → generation are distinct, inspectable functions, explained in
+  `ARCHITECTURE.md`.
 
 ## Constraints
 
-- Single document only for the core build (multi-document support is a possible future enhancement).
-- Must use: Python, PyMuPDF, sentence-transformers, FAISS, a configurable LLM API, and a minimal web UI (FastAPI + a static HTML/CSS/JS frontend — originally Streamlit; see `DECISIONS.md` for the migration).
-- Must actually run and be tested before being called done — no untested claims.
+- Python, PyMuPDF, sentence-transformers, FAISS, a configurable
+  OpenAI-compatible LLM API, and a FastAPI backend serving a static
+  HTML/CSS/JS frontend.
+- Must actually run and be tested before being called done — 45 automated
+  tests plus real-browser checks of the deployed app (see `README.md`).
