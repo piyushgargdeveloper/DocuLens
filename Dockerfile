@@ -6,6 +6,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# The base image ships setuptools 78.1.0, which has published advisories
+# (PYSEC-2025-49, PYSEC-2026-3447) -- found by the pip-audit CI step. Nothing
+# here uses it at runtime, but it shouldn't sit in the image unpatched.
+RUN pip install --no-cache-dir --upgrade pip "setuptools>=83"
+
 # Install the CPU-only PyTorch build first, from PyTorch's own CPU wheel
 # index. This app never uses a GPU, but PyPI's default "torch" wheel on
 # Linux bundles several hundred MB of NVIDIA CUDA packages regardless --

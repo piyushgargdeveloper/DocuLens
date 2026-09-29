@@ -1,0 +1,17 @@
+# Thin update image used for deploys to the EC2 instance.
+#
+# The instance's root disk is 6.7GB with ~1GB free, so rebuilding the full
+# image (torch, sentence-transformers) next to the running one could fill it.
+# Instead each release builds a small layer on top of the currently deployed
+# image: same base and dependencies, the new application code, any requirement
+# floors that changed, and security upgrades of the base tooling.
+#
+#   docker build -f deploy/Dockerfile.update -t ai-document-assistant:vX.Y.Z .
+#
+# The full, from-scratch build remains ../Dockerfile.
+FROM ai-document-assistant:prod
+WORKDIR /app
+RUN pip install --no-cache-dir --upgrade pip "setuptools>=83"
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
