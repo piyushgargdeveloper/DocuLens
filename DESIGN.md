@@ -63,11 +63,23 @@ a short explanation, a white drop card with an upload icon, three feature
 cards (Grounded / Multi-document / Private) and the privacy note. On a
 phone it scrolls rather than running under the footer.
 
-**Footer.** A full-width bar in three groups: brand + tagline, links
-(GitHub, Releases, Report an issue, Privacy — which opens a dialog), and
-the credit "Made with ❤️ by Piyush Garg" with a version badge linking to
-the release notes. On a phone the brand is dropped (the top bar already
-shows it) and the rest wraps into two short rows.
+**Footer** (two tiers since v2.2.0). Top: brand + tagline, the live
+**AI providers** row (a pill per provider with a green dot when available,
+a slowly pulsing amber dot while it cools down after a rate limit), and
+the links (GitHub, Releases, Report an issue, Privacy — which opens a
+dialog). Below a dashed hairline: the credit "Made with ❤️ by Piyush Garg",
+the stack in mono (FastAPI · FAISS · MiniLM · BM25 · Gemini · gpt-oss) and a
+version badge linking to the release notes. On a phone the brand, the stack
+and the label are dropped; providers, links and the credit remain.
+
+**Small comforts** (v2.2.0). A light / dark / system toggle in the top bar
+(remembered in this browser; applied before first paint by `theme.js`).
+Every answer ends with a quiet "Groq · gpt-oss-120b" tag naming who wrote
+it. Short confirmations (copied, exported, removed, theme) appear as a
+toast under the top bar instead of cluttering the conversation. Scrolling
+to an answer is smooth; scrolled away from the bottom, a round
+jump-to-latest button appears. While an answer is being prepared, two
+soft skeleton lines breathe under "Searching your documents…".
 
 **Motion** answers what the reader did: views fade in; the start page
 rises in reading order; messages, documents and source cards rise a few

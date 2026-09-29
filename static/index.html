@@ -13,7 +13,9 @@
   <meta property="og:url" content="https://ai-doc-assistant.duckdns.org/" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%235B5BD6%22/><path d=%22M10 8h8l5 5v11H10z%22 fill=%22white%22/><rect x=%2213%22 y=%2216%22 width=%227%22 height=%222.4%22 rx=%221%22 fill=%22%23FFD43B%22/></svg>" />
   <!-- ?v= changes with each release so browsers holding an older cached copy fetch the new file. -->
-  <link rel="stylesheet" href="/static/style.css?v=2.1.0" />
+  <link rel="stylesheet" href="/static/style.css?v=2.2.0" />
+  <!-- Applies a saved light/dark choice before first paint (no flash). -->
+  <script src="/static/theme.js?v=2.2.0"></script>
 </head>
 <body data-view="upload">
   <header class="topbar">
@@ -24,6 +26,11 @@
       <span class="brand-name">AI Document Assistant</span>
     </a>
     <nav class="topbar-links" aria-label="Project links">
+      <button type="button" class="theme-btn" id="theme-btn" data-choice="system" aria-label="Theme: match system" title="Theme: match system">
+        <svg class="icon icon-system" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
+        <svg class="icon icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+        <svg class="icon icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+      </button>
       <a class="pill-link" href="https://github.com/piyushgargog/ai-document-assistant" target="_blank" rel="noopener">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21" /></svg>
         <span>GitHub</span>
@@ -94,7 +101,7 @@
             <span><strong>Private</strong> Never saved to disk, deleted after use</span>
           </li>
         </ul>
-        <p class="privacy-note">Your PDF is never saved to disk. Its text is kept in memory only while you use it, and is deleted when you remove it or after 2 hours of inactivity. To write each answer, your question and the most relevant passages are sent to the AI model provider (Groq).</p>
+        <p class="privacy-note">Your PDF is never saved to disk. Its text is kept in memory only while you use it, and is deleted when you remove it or after 2 hours of inactivity. To write each answer, your question and the most relevant passages are sent to an AI provider (Google AI Studio, Groq, OpenRouter, NVIDIA or Hugging Face).</p>
       </section>
 
       <!-- Indexing state -->
@@ -109,6 +116,9 @@
       <!-- Chat -->
       <section id="chat-view" class="sheet sheet-chat" hidden>
         <div id="messages" class="messages" aria-live="polite"></div>
+        <button type="button" class="jump-latest" id="jump-btn" hidden aria-label="Scroll to the latest message" title="Scroll to latest">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4.5 10.5 10 16l5.5-5.5" /></svg>
+        </button>
 
         <form id="ask-form" class="composer">
           <div class="composer-box">
@@ -142,33 +152,42 @@
   </div>
 
   <footer class="site-footer">
-    <div class="footer-brand">
-      <span class="logo logo-sm" aria-hidden="true">
-        <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" class="logo-bg" /><path d="M10 8h8l5 5v11H10z" class="logo-page" /><rect x="13" y="16" width="7" height="2.4" rx="1" class="logo-mark" /></svg>
-      </span>
-      <span>
-        <strong>AI Document Assistant</strong>
-        <span class="footer-tagline">Answers with the page they came from.</span>
-      </span>
+    <div class="footer-main">
+      <div class="footer-brand">
+        <span class="logo logo-sm" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" class="logo-bg" /><path d="M10 8h8l5 5v11H10z" class="logo-page" /><rect x="13" y="16" width="7" height="2.4" rx="1" class="logo-mark" /></svg>
+        </span>
+        <span>
+          <strong>AI Document Assistant</strong>
+          <span class="footer-tagline">Answers with the page they came from.</span>
+        </span>
+      </div>
+      <div class="footer-providers" id="footer-providers" hidden>
+        <span class="footer-label">AI providers</span>
+        <ul class="provider-list" id="provider-list" aria-label="AI providers and their status"></ul>
+      </div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="https://github.com/piyushgargog/ai-document-assistant" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/piyushgargog/ai-document-assistant/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/piyushgargog/ai-document-assistant/issues" target="_blank" rel="noopener">Report an issue</a>
+        <button type="button" class="footer-link-button" id="privacy-btn">Privacy</button>
+      </nav>
     </div>
-    <nav class="footer-links" aria-label="Footer">
-      <a href="https://github.com/piyushgargog/ai-document-assistant" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/piyushgargog/ai-document-assistant/releases" target="_blank" rel="noopener">Releases</a>
-      <a href="https://github.com/piyushgargog/ai-document-assistant/issues" target="_blank" rel="noopener">Report an issue</a>
-      <button type="button" class="footer-link-button" id="privacy-btn">Privacy</button>
-    </nav>
-    <div class="footer-credit">
-      <span>Made with <span class="heart" role="img" aria-label="love">❤️</span> by <strong>Piyush Garg</strong></span>
-      <a class="version-badge" href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.1.0" target="_blank" rel="noopener" title="Release notes">v2.1.0</a>
+    <div class="footer-bottom">
+      <span class="footer-credit">Made with <span class="heart" role="img" aria-label="love">❤️</span> by <strong>Piyush Garg</strong></span>
+      <span class="footer-stack">FastAPI · FAISS · MiniLM · BM25 · Gemini · gpt-oss</span>
+      <a class="version-badge" href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.2.0" target="_blank" rel="noopener" title="Release notes">v2.2.0</a>
     </div>
   </footer>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
   <dialog id="privacy-dialog" class="dialog" aria-labelledby="privacy-title">
     <h2 id="privacy-title">Privacy</h2>
     <ul>
       <li>Your PDF is never written to disk. Its extracted text lives only in server memory for your session.</li>
       <li>It's deleted when you remove the document, after 2 hours of inactivity, or when the server restarts.</li>
-      <li>To write each answer, your question and the most relevant passages are sent to the AI model provider (Groq). Nothing else about you is sent.</li>
+      <li>To write each answer, your question and the most relevant passages are sent to one AI provider (Google AI Studio, Groq, OpenRouter, NVIDIA or Hugging Face — whichever is available; each answer shows which one). Nothing else about you is sent.</li>
       <li>The page loads nothing from other websites — no analytics, no trackers, no third-party fonts.</li>
     </ul>
     <form method="dialog"><button class="btn btn-primary" type="submit">Got it</button></form>
@@ -206,6 +225,6 @@
     </li>
   </template>
 
-  <script src="/static/app.js?v=2.1.0"></script>
+  <script src="/static/app.js?v=2.2.0"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.1.0
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.2.0
 
 ## What it does
 
@@ -77,8 +77,13 @@ those passages) so answers stay traceable back to the source text.
 - Retrieved document text is treated as untrusted data: it is fenced in
   the prompt and the model is instructed never to follow instructions
   embedded in a document (see [Security](#security-notes) below).
-- Works with any OpenAI-compatible LLM API (OpenAI, Groq, or a local
-  compatible endpoint) via environment variables — no vendor lock-in.
+- **Several AI providers with automatic failover** (v2.2.0): Google AI
+  Studio (Gemini, tried first), then Groq, OpenRouter, NVIDIA and Hugging
+  Face (all serving the open `gpt-oss-120b`). If one is rate limited, out of quota, down or
+  misconfigured, the question goes to the next, and the failing one is
+  skipped for a cooldown. Each answer shows which provider and model
+  wrote it, and the footer shows which providers are available right now.
+  Any other OpenAI-compatible endpoint can be plugged in too.
 
 ## Architecture
 
@@ -243,18 +248,25 @@ copy .env.example .env
 cp .env.example .env
 ```
 
+Set at least one provider key. Every key you add is another provider
+the app can fall back to:
+
 ```
-LLM_API_KEY=your_api_key_here
-LLM_BASE_URL=https://api.groq.com/openai/v1
-LLM_MODEL=openai/gpt-oss-120b
+GEMINI_API_KEY=...        # https://aistudio.google.com/apikey
+GROQ_API_KEY=...          # https://console.groq.com/keys
+OPENROUTER_API_KEY=...    # https://openrouter.ai/keys
+NVIDIA_API_KEY=...        # https://build.nvidia.com
+HF_TOKEN=...              # https://huggingface.co/settings/tokens
 ```
 
-Any OpenAI-compatible chat completions endpoint works — change
-`LLM_BASE_URL`/`LLM_MODEL` to use OpenAI or another compatible provider
-instead of Groq. Optionally set `LLM_FALLBACK_MODEL` (e.g.
-`openai/gpt-oss-20b`): when the main model is rate limited — on Groq's free
-tier, typically its daily token quota — answers come from the fallback
-instead of an error. `.env` is gitignored; never commit real API keys.
+`LLM_PROVIDERS` sets the order (default `google,groq,openrouter,nvidia,huggingface`),
+`<NAME>_MODEL` / `<NAME>_BASE_URL` override a provider's defaults, and
+`LLM_FALLBACK_MODEL` (e.g. `openai/gpt-oss-20b`) adds a second Groq model
+at the end of the chain, since each Groq model has its own daily quota.
+Older `.env` files with `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` keep
+working: they configure the first slot, and can point it at any
+OpenAI-compatible endpoint. `.env` is gitignored; never commit real API
+keys. See `.env.example` for everything.
 
 ## How to run
 
@@ -322,8 +334,10 @@ LLM, so a few things are handled deliberately:
   system-prompt-exfiltration payloads — the model reported the injected
   text as document content and refused the exfiltration attempt instead
   of obeying either (see `tests/test_prompt_injection.py`).
-- **Secrets**: the API key is read only from the environment
-  (`LLM_API_KEY`). It is never logged, rendered, or committed; `.env` is
+- **Secrets**: provider API keys are read only from the environment
+  (`GEMINI_API_KEY`, `GROQ_API_KEY`/`LLM_API_KEY`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`,
+  `HF_TOKEN`). `/api/status` reports provider names, models and
+  availability only — never keys or URLs. It is never logged, rendered, or committed; `.env` is
   gitignored and only `.env.example` (placeholders) is tracked.
 - **Session cookie**: the session ID is an `httponly`, `samesite=lax`
   cookie, marked `Secure` whenever the site is served over HTTPS — not
@@ -340,8 +354,10 @@ LLM, so a few things are handled deliberately:
   minutes even when no one is using the site, and a server restart clears
   everything. The upload screen tells users this.
 - **What leaves the server**: to write an answer, the question and the
-  retrieved passages are sent to the configured LLM provider (Groq by
-  default); the upload screen says so. Fonts are self-hosted, so the page
+  retrieved passages are sent to one AI provider (whichever of Google AI Studio, Groq,
+  OpenRouter, NVIDIA or Hugging Face is configured and available); the
+  upload screen and the Privacy dialog say so, and each answer names the
+  provider that wrote it. Fonts are self-hosted, so the page
   itself makes no requests to other sites.
 - **Response headers**: a strict Content-Security-Policy (everything from
   `'self'`, no inline scripts or styles, no framing), `nosniff`,

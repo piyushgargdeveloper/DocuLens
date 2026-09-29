@@ -20,6 +20,10 @@ def _reset_rate_limits():
     """Rate-limit counters are process-global; give every test a clean slate."""
     import main
 
+    import providers
+
     main._rate_log.clear()
+    providers.reset()
     yield
     main._rate_log.clear()
+    providers.reset()

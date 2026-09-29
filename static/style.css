@@ -61,8 +61,10 @@
   color-scheme: light;
 }
 
+/* Dark: follows the system unless the reader picked light in the top bar
+   (theme.js sets data-theme), or always when they picked dark. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0B0B0E;
     --surface: #131317;
     --surface-2: #1B1B20;
@@ -90,6 +92,35 @@
     --shadow-lg: 0 24px 56px -12px rgba(0, 0, 0, 0.75);
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0B0B0E;
+  --surface: #131317;
+  --surface-2: #1B1B20;
+  --surface-3: #232329;
+  --border: #26262C;
+  --border-strong: #34343C;
+  --text: #F4F4F5;
+  --text-soft: #B4B4BC;
+  --text-faint: #7C7C86;
+  --accent: #7B7BF0;
+  --accent-hover: #8E8EF5;
+  --accent-soft: #1F1F3A;
+  --accent-soft-2: #2A2A4E;
+  --accent-text: #B4B4FF;
+  --on-accent: #0B0B0E;
+  --mark: #3D3517;
+  --mark-edge: #E8C83F;
+  --danger: #FF6B61;
+  --danger-soft: #2A1614;
+  --heart: #FF6369;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 8px 24px -6px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 24px 56px -12px rgba(0, 0, 0, 0.75);
+  color-scheme: dark;
 }
 
 * {
@@ -202,6 +233,46 @@ a {
   font-weight: 650;
   font-size: 0.975rem;
   letter-spacing: -0.015em;
+}
+
+.topbar-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-soft);
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, transform 0.2s var(--ease);
+}
+
+.theme-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.theme-btn:active {
+  transform: rotate(-20deg) scale(0.94);
+}
+
+.theme-btn .icon {
+  display: none;
+  animation: fade 0.2s ease-out;
+}
+
+.theme-btn[data-choice="system"] .icon-system,
+.theme-btn[data-choice="light"] .icon-light,
+.theme-btn[data-choice="dark"] .icon-dark {
+  display: block;
 }
 
 .pill-link {
@@ -890,6 +961,23 @@ body:not([data-view="chat"]) .shelf {
   50% { opacity: 0.25; }
 }
 
+.msg-pending::after {
+  content: "";
+  display: block;
+  width: min(420px, 70%);
+  height: 10px;
+  margin-top: 12px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  box-shadow: 0 20px 0 var(--surface-3);
+  margin-bottom: 20px;
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% { opacity: 0.45; }
+}
+
 .msg-error {
   align-self: stretch;
   max-width: 68ch;
@@ -1403,6 +1491,26 @@ body.drop-target .sheet-chat::after {
   margin: 14px 0 0;
 }
 
+/* Which provider and model wrote the answer. */
+.answered-by {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 4px 4px 4px 0;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.answered-by-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.7;
+}
+
 /* While a question is being answered, other ways of asking are paused. */
 body.busy .suggestion,
 body.busy .follow-up {
@@ -1422,20 +1530,113 @@ body.busy .follow-up {
   color: var(--danger);
 }
 
-/* ---------- Footer ---------- */
+/* ---------- Jump to latest ---------- */
+
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 110px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-soft);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  animation: rise 0.25s var(--ease) both;
+  transition: color 0.15s, transform 0.15s var(--ease);
+}
+
+.jump-latest:hover {
+  color: var(--accent);
+  transform: translateY(1px);
+}
+
+.jump-latest svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- Toasts ---------- */
+
+/* Top centre, under the top bar: clear of the composer and the footer. */
+.toasts {
+  position: fixed;
+  left: 50%;
+  top: 64px;
+  z-index: 50;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+  animation: toast-in 0.28s var(--ease) both;
+}
+
+.toast.leaving {
+  animation: toast-out 0.22s ease-in both;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.96); }
+}
+
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+/* ---------- Footer ----------
+   Two tiers: brand, live AI-provider status and links on top; the credit,
+   the stack and the version underneath. */
 
 .site-footer {
   flex: none;
   width: 100%;
   border-top: 1px solid var(--border);
   background: var(--surface);
-  padding: 12px max(24px, calc((100% - 1440px) / 2 + 24px));
+  padding: 0 max(24px, calc((100% - 1440px) / 2 + 24px));
+  font-size: var(--text-sm);
+  color: var(--text-soft);
+}
+
+.footer-main {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 10px 24px;
-  font-size: var(--text-sm);
-  color: var(--text-soft);
+  padding: 12px 0 10px;
+}
+
+.footer-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 0 10px;
+  border-top: 1px dashed var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-faint);
 }
 
 .footer-brand {
@@ -1459,10 +1660,63 @@ body.busy .follow-up {
   line-height: 1.3;
 }
 
+.footer-providers {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.footer-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.provider-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: var(--text-xs);
+  font-weight: 550;
+  color: var(--text-soft);
+  white-space: nowrap;
+  animation: fade 0.3s ease-out both;
+}
+
+.provider-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #30A46C;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #30A46C 18%, transparent);
+}
+
+.provider[data-state="cooling"] .provider-dot {
+  background: #E5A000;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #E5A000 18%, transparent);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
 .footer-links {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 2px 4px;
 }
 
@@ -1487,16 +1741,20 @@ body.busy .follow-up {
 }
 
 .footer-credit {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
   white-space: nowrap;
+  color: var(--text-soft);
 }
 
 .footer-credit strong {
   color: var(--text);
   font-weight: 600;
+}
+
+.footer-stack {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: -0.01em;
 }
 
 .heart {
@@ -1516,7 +1774,7 @@ body.busy .follow-up {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 9px;
+  padding: 2px 9px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface-2);
@@ -1587,18 +1845,16 @@ body.busy .follow-up {
   justify-content: flex-end;
 }
 
-/* ---------- Medium screens: the footer stacks its three groups ---------- */
+/* ---------- Medium screens: providers move under the brand ---------- */
 
-@media (max-width: 1100px) {
-  .site-footer {
+@media (max-width: 1180px) {
+  .footer-main {
     grid-template-columns: 1fr auto;
   }
 
-  .footer-links {
+  .footer-providers {
     grid-column: 1 / -1;
     grid-row: 2;
-    justify-content: flex-start;
-    margin-left: -9px;
   }
 }
 
@@ -1717,22 +1973,35 @@ body.busy .follow-up {
   }
 
   .site-footer {
-    padding: 8px 14px;
-    gap: 2px 12px;
+    padding: 0 14px;
     font-size: var(--text-xs);
   }
 
   /* The top bar already names the app on a phone. */
-  .footer-brand {
+  .footer-brand,
+  .footer-stack,
+  .footer-label {
     display: none;
   }
 
-  .site-footer {
+  .footer-main {
     grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px 0 6px;
   }
 
-  .footer-credit {
-    justify-content: space-between;
+  .footer-providers {
+    grid-row: auto;
+    overflow-x: auto;
+  }
+
+  .provider-list {
+    flex-wrap: nowrap;
+  }
+
+  .footer-links {
+    justify-content: flex-start;
+    margin-left: -6px;
   }
 
   .footer-links a,
@@ -1740,8 +2009,17 @@ body.busy .follow-up {
     padding: 3px 6px;
   }
 
-  .footer-links {
-    margin-left: -6px;
+  .footer-bottom {
+    justify-content: space-between;
+    padding: 6px 0 8px;
+  }
+
+  .answered-by {
+    margin-left: 0;
+  }
+
+  .toasts {
+    top: 58px;
   }
 }
 

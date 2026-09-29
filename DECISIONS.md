@@ -409,3 +409,18 @@ date, what changed, why, and what (if anything) failed._
     - Headless Chrome against the live URL (desktop light, desktop dark, 390px phone) showed the new layout: an answer with a `p. 3` chip that highlights its source card, the footer credit and `v2.1.0` badge, and the Privacy dialog.
     - 0 console errors or CSP violations.
   - The server's copies of the old Atkinson and Source Serif font files are still inside the image, because the thin image is built on the older base. They are not referenced by the page.
+- **2026-09-29** — v2.2.0: several AI providers with failover, and a smoother UI.
+  - **Why.** One free tier isn't enough. Groq gives 200k tokens a day per model, and a day of testing uses it up. The owner asked for several providers, with **Google AI Studio first** and Groq, OpenRouter, NVIDIA and Hugging Face after it.
+  - **How.** All five expose OpenAI-compatible `/chat/completions` (Gemini via `/v1beta/openai`). So the new `providers.py` adds a chain, not five SDKs:
+    - Every provider with a key, in `LLM_PROVIDERS` order, then Groq's `LLM_FALLBACK_MODEL`. Old `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` still configure the Groq slot.
+    - A failing route hands the question to the next one and cools down: rate limit for `Retry-After` (capped at 15 min); 401/403/404 for 15 min; timeout/5xx for 30s. Another 4xx passes the question on without a cooldown. If every route is cooling, all are tried anyway.
+    - With another route left, a 429 is not waited out (at most 3s); the last route waits up to 30s as before. A 5s connect timeout makes a dead provider fail fast.
+    - Streams switch provider only before the first token, so text is never repeated.
+  - **Policy change.** Server errors used to be reported straight away and now fail over. With several providers, a 5xx from one says nothing about the others.
+  - **Transparency.** Replies carry their route (`Answer`, a `str` subclass): the stream sends a `route` event, and the JSON responses and saved history carry `answered_by`. Each answer shows "Provider · model". `GET /api/status` lists the providers (names, models, availability; never keys or URLs) for the footer. `GET /api/health` backs a new Docker `HEALTHCHECK`.
+  - **UI.**
+    - The footer now has two tiers, with live provider pills (green = available, amber = cooling down).
+    - A light/dark/system toggle, applied before paint by `theme.js`.
+    - Toasts for copy/export/remove/theme, placed under the top bar after the first screenshots showed them covering the footer.
+    - A jump-to-latest button, smooth scrolling and a breathing loading skeleton.
+  - **Tests.** 116 pass: failover order, cooldown skip, bad key, timeout, stream failover, no restart after the first token, status without secrets, the route event, and Google first by default.

@@ -6,7 +6,6 @@ footprint and the amount of "magic" small (see DECISIONS.md).
 """
 
 import json
-import os
 import re
 import time
 from collections.abc import Iterator
@@ -15,9 +14,16 @@ from email.utils import parsedate_to_datetime
 
 import requests
 
+import providers
+from providers import Route
+
 MAX_RETRIES = 3
 DEFAULT_RETRY_WAIT_SECONDS = 5.0
 MAX_RETRY_WAIT_SECONDS = 30.0
+# With another provider to fall back on, waiting longer than this for a
+# rate-limited one is slower than simply asking the next provider.
+IMPATIENT_WAIT_SECONDS = 3.0
+CONNECT_TIMEOUT_SECONDS = 5
 
 SYSTEM_PROMPT = (
     "You are a document assistant. You help the user understand their "
@@ -93,15 +99,34 @@ class LLMRateLimitError(LLMRequestError):
     (e.g. a daily token quota is used up)."""
 
 
-def _config():
-    api_key = os.environ.get("LLM_API_KEY", "").strip()
-    if not api_key:
+class Answer(str):
+    """Reply text that also remembers which provider and model wrote it
+    (`.route`). It is a plain str everywhere else."""
+
+    route: Route | None = None
+
+
+def _tagged(text: str, route: Route) -> Answer:
+    answer = Answer(text)
+    answer.route = route
+    return answer
+
+
+def answered_by(text) -> dict | None:
+    """{"provider", "model"} for a reply from this module, else None."""
+    route = getattr(text, "route", None)
+    return route.describe() if route else None
+
+
+def _candidates() -> list[Route]:
+    chain = providers.candidates()
+    if not chain:
         raise LLMConfigError(
-            "LLM_API_KEY is not set. Copy .env.example to .env and add your API key."
+            "No LLM provider is configured. Copy .env.example to .env and set at "
+            "least one API key (GROQ_API_KEY / LLM_API_KEY, OPENROUTER_API_KEY, "
+            "NVIDIA_API_KEY or HF_TOKEN)."
         )
-    base_url = os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
-    model = os.environ.get("LLM_MODEL", "openai/gpt-oss-120b")
-    return api_key, base_url, model
+    return chain
 
 
 def _retry_wait_seconds(response: requests.Response) -> float | None:
@@ -236,27 +261,33 @@ def parse_suggestions(text: str) -> list[str]:
     return questions[:4]
 
 
-def _chat(messages: list[dict], timeout: int) -> str:
+def _chat(messages: list[dict], timeout: int) -> Answer:
     """One chat completion, returning the reply text.
 
-    If the primary model is rate limited beyond what retries can absorb --
-    typically its daily token quota -- and LLM_FALLBACK_MODEL is set, the same
-    messages are sent once to the fallback model, so the app keeps answering
-    instead of telling users to come back tomorrow.
+    Routes are tried in order (see providers.py): if one is rate limited --
+    typically a daily token quota -- or down, misconfigured or returns
+    nothing, the same messages go to the next, so the app keeps answering
+    as long as any provider can.
     """
-    api_key, base_url, model = _config()
-    try:
-        text = _complete(messages, model, api_key, base_url, timeout)
-    except LLMRateLimitError:
-        model = _fallback_or_raise(model)
-        text = _complete(messages, model, api_key, base_url, timeout)
-    if not text:
-        # Reasoning models occasionally return an empty final message; one
-        # retry almost always yields an answer, and an empty bubble never helps.
-        text = _complete(messages, model, api_key, base_url, timeout)
-    if not text:
-        raise LLMRequestError("The LLM returned an empty answer.")
-    return text
+    chain = _candidates()
+    failures = []
+    for i, route in enumerate(chain):
+        patient = i == len(chain) - 1
+        try:
+            text = _complete(messages, route, timeout, patient)
+            if not text:
+                # Reasoning models occasionally return an empty final message;
+                # one retry almost always yields an answer.
+                text = _complete(messages, route, timeout, patient)
+            if not text:
+                raise LLMRequestError("The LLM returned an empty answer.")
+        except LLMRequestError as exc:
+            _record_failure(route, exc)
+            failures.append(exc)
+            continue
+        providers.mark_ok(route)
+        return _tagged(text, route)
+    raise _final_error(failures)
 
 
 def ask_stream(
@@ -270,29 +301,41 @@ def ask_stream(
 
 
 def _chat_stream(messages: list[dict], timeout: int) -> Iterator[str]:
-    """Stream one chat completion, with the same rate-limit fallback and
-    empty-reply handling as _chat(). Errors before the first piece raise from
-    the first next() call, so callers can still report them cleanly."""
-    api_key, base_url, model = _config()
-    try:
-        response = _post(messages, model, api_key, base_url, timeout, stream=True)
-    except LLMRateLimitError:
-        model = _fallback_or_raise(model)
-        response = _post(messages, model, api_key, base_url, timeout, stream=True)
-
-    produced = False
-    try:
-        for piece in _stream_deltas(response):
-            if piece:
+    """Stream one chat completion, with the same provider failover and
+    empty-reply handling as _chat(). A provider can be swapped only before
+    the first piece arrives; after that, a failure is reported. The first
+    piece is an Answer, so callers can tell who is answering. Errors before
+    the first piece raise from the first next() call, so callers can still
+    report them cleanly."""
+    chain = _candidates()
+    failures = []
+    for i, route in enumerate(chain):
+        patient = i == len(chain) - 1
+        produced = False
+        try:
+            response = _post(messages, route, timeout, stream=True, patient=patient)
+            try:
+                for piece in _stream_deltas(response):
+                    if piece:
+                        yield piece if produced else _tagged(piece, route)
+                        produced = True
+            finally:
+                response.close()
+            if not produced:
+                text = _complete(messages, route, timeout, patient)
+                if not text:
+                    raise LLMRequestError("The LLM returned an empty answer.")
                 produced = True
-                yield piece
-    finally:
-        response.close()
-    if not produced:
-        text = _complete(messages, model, api_key, base_url, timeout)
-        if not text:
-            raise LLMRequestError("The LLM returned an empty answer.")
-        yield text
+                yield _tagged(text, route)
+        except LLMRequestError as exc:
+            if produced:
+                raise
+            _record_failure(route, exc)
+            failures.append(exc)
+            continue
+        providers.mark_ok(route)
+        return
+    raise _final_error(failures)
 
 
 def _stream_deltas(response) -> Iterator[str]:
@@ -322,62 +365,100 @@ def _stream_deltas(response) -> Iterator[str]:
             yield content
 
 
-def _fallback_or_raise(model: str) -> str:
-    fallback = os.environ.get("LLM_FALLBACK_MODEL", "").strip()
-    if not fallback or fallback == model:
-        raise LLMRateLimitError(
-            "The LLM API is rate limiting requests and asked to wait longer "
-            "than this app will hold for. Please try again shortly."
+def _record_failure(route: Route, exc: LLMRequestError) -> None:
+    """Put a failing route on cooldown so later questions skip it."""
+    status = getattr(exc, "status", None)
+    if isinstance(exc, LLMRateLimitError):
+        wait = getattr(exc, "wait", None) or providers.RATE_LIMIT_COOLDOWN_DEFAULT
+        providers.cool_down(route, min(wait, providers.RATE_LIMIT_COOLDOWN_MAX), "rate limited")
+    elif status in (401, 403, 404):
+        providers.cool_down(route, providers.BROKEN_COOLDOWN, f"HTTP {status} (key or model)")
+    elif status is None or status >= 500:
+        providers.cool_down(route, providers.FLAKY_COOLDOWN, str(exc)[:120])
+    else:
+        # Another 4xx is about this request (e.g. too long for this model),
+        # not the provider: try the next one, but don't sideline this one.
+        print(f"LLM provider {route.label} ({route.model}) refused the request: HTTP {status}")
+
+
+def _final_error(failures: list[LLMRequestError]) -> LLMRequestError:
+    if failures and all(isinstance(f, LLMRateLimitError) for f in failures):
+        return LLMRateLimitError(
+            "Every configured AI provider is rate limiting requests right now. "
+            "Please try again shortly."
         )
-    print(f"LLM model {model} is rate limited; answering with fallback model {fallback}")
-    return fallback
+    last = failures[-1] if failures else None
+    return LLMRequestError(f"Every configured AI provider failed; last error: {last}")
 
 
-def _post(messages: list[dict], model: str, api_key: str, base_url: str, timeout: int, stream: bool = False):
-    """POST one chat completion request to one model, with 429 retry/backoff.
-    Returns the successful response (streaming or not)."""
+def _rate_limit_error(wait: float | None) -> LLMRateLimitError:
+    error = LLMRateLimitError(
+        "The LLM API is rate limiting requests and asked to wait longer "
+        "than this app will hold for. Please try again shortly."
+    )
+    error.wait = wait
+    error.status = 429
+    return error
+
+
+def _post(messages: list[dict], route: Route, timeout: int, stream: bool = False, patient: bool = True):
+    """POST one chat completion request to one route, with 429 retry/backoff.
+    Returns the successful response (streaming or not). An impatient call
+    (another provider is still available) waits only briefly on a rate limit."""
     payload = {
-        "model": model,
+        "model": route.model,
         "messages": messages,
         "temperature": 0.0,
     }
     if stream:
         payload["stream"] = True
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {route.api_key}",
         "Content-Type": "application/json",
+        **dict(route.headers),
     }
+    max_wait = MAX_RETRY_WAIT_SECONDS if patient else IMPATIENT_WAIT_SECONDS
 
     for attempt in range(MAX_RETRIES + 1):
         try:
             response = requests.post(
-                f"{base_url}/chat/completions", json=payload, headers=headers, timeout=timeout, stream=stream
+                f"{route.base_url}/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=(CONNECT_TIMEOUT_SECONDS, timeout),
+                stream=stream,
             )
         except requests.RequestException as exc:
-            raise LLMRequestError(f"LLM API call failed: {exc}") from exc
+            raise LLMRequestError(f"LLM API call failed: {type(exc).__name__}") from exc
 
         if response.status_code == 429:
             wait_seconds = _retry_wait_seconds(response)
             response.close()
-            if wait_seconds is None or attempt == MAX_RETRIES:
-                raise LLMRateLimitError(
-                    "The LLM API is rate limiting requests and asked to wait longer "
-                    "than this app will hold for. Please try again shortly."
-                )
+            if wait_seconds is None or wait_seconds > max_wait or attempt == MAX_RETRIES:
+                raise _rate_limit_error(wait_seconds if wait_seconds is not None else _long_wait(response))
             time.sleep(wait_seconds)
             continue
-        try:
-            response.raise_for_status()
-        except requests.RequestException as exc:
+        if response.status_code >= 400:
             response.close()
-            raise LLMRequestError(f"LLM API call failed: {exc}") from exc
+            error = LLMRequestError(f"LLM API call failed: HTTP {response.status_code}")
+            error.status = response.status_code
+            raise error
         return response
-    raise LLMRateLimitError("The LLM API is rate limiting requests.")  # not reached
+    raise _rate_limit_error(None)  # not reached
 
 
-def _complete(messages: list[dict], model: str, api_key: str, base_url: str, timeout: int) -> str:
-    """One non-streaming chat completion from one model; the reply text."""
-    response = _post(messages, model, api_key, base_url, timeout)
+def _long_wait(response: requests.Response) -> float | None:
+    """The Retry-After a provider sent, even beyond what we'd wait inline,
+    so the cooldown can match it."""
+    try:
+        return float(response.headers.get("retry-after", ""))
+    except ValueError:
+        return None
+
+
+def _complete(messages: list[dict], route: Route, timeout: int, patient: bool = True) -> str:
+    """One non-streaming chat completion from one route; the reply text."""
+    response = _post(messages, route, timeout, patient=patient)
     try:
         data = response.json()
         return (data["choices"][0]["message"].get("content") or "").strip()
