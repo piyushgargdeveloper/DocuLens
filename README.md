@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.6.0
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.7.0
 
 ## What it does
 
@@ -131,6 +131,32 @@ test result encountered while building this is logged chronologically in
   `requests`-based client — no heavyweight SDK or agent framework
 - **Docker** (optional) for deployment — see [Deployment](#deployment)
 
+## What the LLM does (and why this isn't a text extractor)
+
+Retrieval finds *where* the document talks about something. The LLM turns
+those passages into an answer to *your* question:
+
+- **Explains in its own words, at your level.** "Explain multi-head
+  attention" and "Explain it more simply" give different answers from the
+  same passages; the second drops the formulas and uses everyday language.
+- **Combines passages.** "How is self-attention better than recurrent
+  layers?" pulls a complexity table and two paragraphs into one three-point
+  comparison — no single passage says that.
+- **Answers whole-document questions.** "What is this paper about?" matches
+  no particular passage, so such questions are recognised and routed to an
+  overview of the document (its opening plus evenly spaced passages) for the
+  LLM to condense — before this, similarity search returned the reference
+  list and the assistant refused.
+- **Says what's missing.** If the documents answer only part of a question,
+  it answers that part and names what isn't covered; if they answer none of
+  it, it refuses rather than guessing.
+- **Suggests where to start.** After upload it reads a sample of the
+  document and proposes questions worth asking.
+
+What it may not do is add knowledge of its own: every claim must come from
+the passages and carry a page citation, and each answer shows those
+passages beside it so you can check.
+
 ## How the pipeline works
 
 1. **Ingestion (once per uploaded PDF):** extract text per page, split
@@ -186,7 +212,10 @@ LLM_MODEL=openai/gpt-oss-120b
 
 Any OpenAI-compatible chat completions endpoint works — change
 `LLM_BASE_URL`/`LLM_MODEL` to use OpenAI or another compatible provider
-instead of Groq. `.env` is gitignored; never commit real API keys.
+instead of Groq. Optionally set `LLM_FALLBACK_MODEL` (e.g.
+`openai/gpt-oss-20b`): when the main model is rate limited — on Groq's free
+tier, typically its daily token quota — answers come from the fallback
+instead of an error. `.env` is gitignored; never commit real API keys.
 
 ## How to run
 
@@ -213,7 +242,9 @@ resembling production use.
    and similarity score. Click a yellow page tab (e.g. **p. 3**) to
    highlight the passage it came from; click a margin note to expand it.
 6. Ask follow-up questions — the last 3 turns are sent along, so
-   references like "it" or "that one" resolve.
+   references like "it" or "that one" resolve. Under each answer,
+   **Explain more simply** and **Go deeper** ask the assistant to rework it.
+   After the first upload, **Try asking** offers suggested questions.
 7. Click **Summarize** under a document for a short summary of it.
 8. Use **×** to remove one document, or **Remove all** to start over.
 

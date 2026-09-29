@@ -258,3 +258,14 @@ def test_footer_credits_the_author_and_links_the_repository(client):
     html = client.get("/").text
     assert "Made with" in html and "Piyush Garg" in html
     assert 'href="https://github.com/piyushgargog/ai-document-assistant"' in html
+
+
+def test_suggestions_for_a_loaded_document(client, sample_pdf_bytes, monkeypatch):
+    import llm_client
+
+    monkeypatch.setattr(llm_client, "suggest_questions", lambda passages, timeout=30: ["What is Jupiter known for?"])
+    doc = client.post("/api/ingest", files={"file": ("a.pdf", sample_pdf_bytes, "application/pdf")}).json()
+    response = client.post("/api/suggestions", json={"id": doc["id"]})
+    assert response.status_code == 200
+    assert response.json() == {"questions": ["What is Jupiter known for?"]}
+    assert client.post("/api/suggestions", json={"id": "nope"}).status_code == 404

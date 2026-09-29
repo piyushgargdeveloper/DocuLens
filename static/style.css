@@ -735,6 +735,72 @@ button.cite:hover {
   box-shadow: 0 0 0 1px var(--ink);
 }
 
+/* Starter questions the LLM proposes after reading the document. */
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.suggestions-label {
+  margin: 0 0 2px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.suggestion {
+  font-family: var(--serif);
+  font-size: var(--text-md);
+  text-align: left;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 8px 12px;
+  max-width: 60ch;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.08s;
+  animation: rise 0.3s ease-out both;
+}
+
+.suggestion:nth-of-type(2) { animation-delay: 60ms; }
+.suggestion:nth-of-type(3) { animation-delay: 120ms; }
+.suggestion:nth-of-type(4) { animation-delay: 180ms; }
+
+.suggestion:hover {
+  border-color: var(--ink);
+}
+
+.suggestion:active {
+  transform: translateY(1px);
+}
+
+/* Ask the LLM to rewrite its answer for the reader. */
+.answer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 10px 0 0 -6px;
+}
+
+.follow-up {
+  color: var(--ink-soft);
+}
+
+.follow-up:hover {
+  color: var(--ink);
+}
+
+/* While a question is being answered, other ways of asking are paused. */
+body.busy .suggestion,
+body.busy .follow-up {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* Shown only near the 1000-character limit. */
 .char-count {
   align-self: center;

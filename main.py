@@ -29,7 +29,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The release version. static/index.html repeats it (asset ?v= query, footer,
 # release link) and tests/test_api.py fails if the two ever disagree.
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
@@ -291,6 +291,25 @@ async def summary(request: Request):
     except Exception as e:
         return _llm_error_response(e, "summarizing the document")
     return {"filename": index_state.name, "summary": result["summary"], "sources": result["sources"]}
+
+
+@app.post("/api/suggestions")
+async def suggestions(request: Request):
+    """Starter questions for a document, written by the LLM from a sample of it."""
+    session = _get_session(request)
+    if session is None or not session.docs:
+        return _error("No document is loaded. Please upload a PDF first.", 400)
+
+    body = await _json_body(request)
+    index_state = session.docs.get(body.get("id"))
+    if index_state is None:
+        return _error("That document is not loaded.", 404)
+
+    try:
+        questions = await run_in_threadpool(pipeline.suggest_questions, index_state)
+    except Exception as e:
+        return _llm_error_response(e, "suggesting questions")
+    return {"questions": questions}
 
 
 @app.post("/api/remove")

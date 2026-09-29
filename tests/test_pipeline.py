@@ -65,3 +65,55 @@ def test_summarize_samples_chunks_across_the_document(sample_pdf_bytes, monkeypa
     pages = {s["page"] for s in result["sources"]}
     assert len(result["sources"]) == min(pipeline.SUMMARY_SAMPLE_CHUNKS, state.num_chunks)
     assert pages == {1, 2, 3, 4}
+
+
+# --- Whole-document questions are routed away from similarity search -------
+
+OVERVIEW = [
+    "What is the main contribution of this paper, in simple words?",
+    "What is this document about?",
+    "Summarize the key findings.",
+    "whats the paper about",
+    "Give me a short summary",
+    "tl;dr please",
+]
+SPECIFIC = [
+    "How many heads are used?",
+    "What is the summary statistic used in table 2?",
+    "Explain multi-head attention to a beginner.",
+    "What is the key size dk?",
+]
+
+
+@pytest.mark.parametrize("question", OVERVIEW)
+def test_overview_questions_are_detected(question):
+    assert pipeline.is_overview_question(question)
+
+
+@pytest.mark.parametrize("question", SPECIFIC)
+def test_specific_questions_are_not_treated_as_overview(question):
+    assert not pipeline.is_overview_question(question)
+
+
+def test_overview_sample_starts_with_the_opening_and_spans_the_document(sample_pdf_bytes):
+    state = pipeline.ingest(sample_pdf_bytes, chunk_size=120, chunk_overlap=20)
+    sample = pipeline.overview_sample(state, count=5)
+    chunks = state.store.chunks
+    assert len(sample) == 5
+    assert sample[:2] == chunks[:2]  # abstract / introduction always included
+    positions = [chunks.index(c) for c in sample]
+    assert positions == sorted(positions)  # document order
+    assert sample[-1]["page"] > sample[0]["page"]  # reaches past the opening
+
+
+def test_overview_question_uses_the_sample_not_retrieval(sample_pdf_bytes, monkeypatch):
+    def no_retrieval(*args, **kwargs):
+        raise AssertionError("similarity search should not run for an overview question")
+
+    seen = {}
+    monkeypatch.setattr(pipeline, "retrieve", no_retrieval)
+    monkeypatch.setattr(pipeline.llm_client, "ask", lambda q, p, history=None: seen.setdefault("p", p) and "ok")
+    state = pipeline.ingest(sample_pdf_bytes)
+    result = pipeline.answer("What is this document about?", state)
+    assert result["sources"] and all(s["score"] is None for s in result["sources"])
+    assert seen["p"][0]["page"] == 1

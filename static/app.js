@@ -139,10 +139,30 @@ function addError(text) {
 // markdown rendering, by design), so drop the markers instead of showing
 // literal asterisks.
 function plain(text) {
-  return text
+  return delatex(text)
     .replace(/\*\*(.+?)\*\*/g, "$1")
     // Markdown list markers ("* item", "- item") become real bullets.
     .replace(/^([ \t]*)[*-][ \t]+/gm, "$1• ");
+}
+
+// The prompt asks for plain text, but models (especially smaller fallback
+// ones) still write LaTeX for formulas. Turn the common pieces into readable
+// text rather than showing backslashes.
+function delatex(text) {
+  const symbols = { times: "×", cdot: "·", dots: "…", ldots: "…", approx: "≈", leq: "≤", geq: "≥", infty: "∞", to: "→", in: "∈" };
+  let out = text
+    .replace(/\\\(|\\\)|\\\[|\\\]/g, "")
+    .replace(/\\(?:text|mathrm|mathbf|operatorname)\{([^{}]*)\}/g, "$1")
+    .replace(/\\sqrt\{([^{}]*)\}/g, "√$1")
+    .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, "($1)/($2)")
+    .replace(/\\([a-zA-Z]+)/g, (m, name) => symbols[name] ?? m);
+  // x_{i} -> x_i, x^{2} -> x^2 (braces only add noise in plain text);
+  // repeated so nested braces unwrap from the inside out.
+  for (let previous = ""; previous !== out; ) {
+    previous = out;
+    out = out.replace(/([_^])\{([^{}]*)\}/g, "$1$2");
+  }
+  return out;
 }
 
 // Citations the model writes, e.g. 【report.pdf, Page 3】, [Page 3],
@@ -268,7 +288,29 @@ function buildNotes(sources, label) {
 }
 
 /** Turn a pending message into a finished answer (or add a new one). */
-function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources" } = {}) {
+const REFUSAL = "I could not find the answer";
+const FOLLOW_UPS = [
+  ["Explain more simply", "Explain that more simply, in plain words for someone new to the topic, still using only what the passages say."],
+  // Asking for "more" invites padding from outside knowledge (seen in testing
+  // on a short document), so the instruction repeats the grounding rule.
+  ["Go deeper", "Give more detail on that, using only details that appear in the passages. If the documents say nothing more, say so."],
+];
+
+function buildFollowUps() {
+  const bar = document.createElement("div");
+  bar.className = "answer-actions";
+  for (const [label, question] of FOLLOW_UPS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-text follow-up";
+    button.textContent = label;
+    button.addEventListener("click", () => askQuestion(question, label));
+    bar.appendChild(button);
+  }
+  return bar;
+}
+
+function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources", followUps = false } = {}) {
   el.className = "msg msg-assistant answer msg-enter";
   el.removeAttribute("role");
   el.replaceChildren();
@@ -287,6 +329,7 @@ function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources" } = {
   body.className = "msg-text";
   renderAnswerText(body, text, notes);
   main.appendChild(body);
+  if (followUps && !text.trim().startsWith(REFUSAL)) main.appendChild(buildFollowUps());
   el.appendChild(main);
 
   if (notes) {
@@ -368,6 +411,7 @@ async function uploadFirst(file) {
   showView("chat");
   renderDocuments(data.documents);
   addNote(`${data.filename} is ready. Ask anything about it.`);
+  showSuggestions(data.id);
   questionInput.value = "";
   questionInput.focus();
 }
@@ -393,6 +437,29 @@ async function uploadAdditional(file) {
   }
   renderDocuments(data.documents);
   addNote(`Added ${data.filename}. Questions now search all ${data.documents.length} documents.`);
+}
+
+/** The LLM reads a sample of the document and proposes starter questions.
+ *  Best-effort: on any error the conversation simply starts without them. */
+async function showSuggestions(docId) {
+  const data = await api("/api/suggestions", { id: docId });
+  if (data.error || !data.questions || data.questions.length === 0) return;
+
+  const box = document.createElement("div");
+  box.className = "msg suggestions";
+  const label = document.createElement("p");
+  label.className = "suggestions-label";
+  label.textContent = "Try asking";
+  box.appendChild(label);
+  for (const question of data.questions) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "suggestion";
+    button.textContent = question;
+    button.addEventListener("click", () => askQuestion(question));
+    box.appendChild(button);
+  }
+  append(box);
 }
 
 async function summarizeDoc(doc, button) {
@@ -466,12 +533,17 @@ removeBtn.addEventListener("click", async () => {
   renderDocuments([]);
 });
 
-askForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const question = questionInput.value.trim();
-  if (!question) return;
+let busy = false;
 
-  const asked = addUser(question);
+/** `shown` is what appears in the conversation when it differs from the
+ *  instruction sent (the follow-up buttons send a fuller instruction). */
+async function askQuestion(question, shown = question) {
+  question = question.trim();
+  if (!question || busy) return;
+  busy = true;
+  document.body.classList.add("busy");
+
+  const asked = addUser(shown);
   questionInput.value = "";
   autoGrow();
   askBtn.disabled = true;
@@ -483,13 +555,20 @@ askForm.addEventListener("submit", async (e) => {
   if (data.error) {
     showFailure(pending, data.error);
   } else {
-    showAnswer(pending, data.answer, data.sources);
+    showAnswer(pending, data.answer, data.sources, { followUps: true });
   }
   scrollToStart(asked);
 
+  busy = false;
+  document.body.classList.remove("busy");
   questionInput.disabled = false;
   syncQuestionState();
   questionInput.focus({ preventScroll: true });
+}
+
+askForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  askQuestion(questionInput.value);
 });
 
 // Enter submits, Shift+Enter inserts a newline.

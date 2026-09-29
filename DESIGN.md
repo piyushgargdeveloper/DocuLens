@@ -61,6 +61,10 @@ it; while the documents are searched, a thin ink line reads across under
 scroll, nothing loops except the reading line, and all of it switches off
 under reduced motion.
 
+Suggested questions and the "Explain more simply" / "Go deeper" actions
+are set as quiet ink text and outlined serif prompts — the same register as
+the conversation, never as coloured chips — so they read as part of the page.
+
 The footer credits the author ("Made with ❤️ by Piyush Garg"), links the
 repository and names the release. Its heart is the one colour outside the
 highlighter — a deliberate exception, kept small and in the footer, where it

@@ -1,5 +1,6 @@
 """Phase 6: orchestration — wires loader, chunker, embedder, vector store, LLM."""
 
+import re
 from dataclasses import dataclass
 
 import embedder
@@ -13,6 +14,22 @@ DEFAULT_CHUNK_OVERLAP = 150
 DEFAULT_TOP_K = 4
 MAX_HISTORY_TURNS = 3  # earlier Q/A turns sent to the LLM for follow-up questions
 SUMMARY_SAMPLE_CHUNKS = 10  # evenly spaced chunks fed to the summary prompt
+OVERVIEW_CHUNKS = 8  # passages given to the LLM for a whole-document question
+OVERVIEW_LEAD_CHUNKS = 2  # always include the opening (abstract/introduction)
+
+# Questions about the document as a whole ("what is this about?", "main
+# contribution", "summarize the key findings"). Similarity search is the wrong
+# tool for these: no single passage resembles the question, so it returns
+# whatever shares a word with it -- in testing, the reference list.
+OVERVIEW_PATTERN = re.compile(
+    r"\b(summari[sz](e|ing)"  # "summarize", "summarising" (verb, not "summary statistic")
+    r"|summary(?= of| please|\s*\?|\s*$)|(give|write|need|want)( me)? (a |the )?(short |quick |brief )?summary"
+    r"|overview|gist|tl;?dr|in a nutshell"
+    r"|(main|key|central|overall|primary|core|biggest) (idea|point|message|contribution|finding|takeaway|argument|goal|topic|theme)s?"
+    r"|what('?s| is| are)? (this|the) (document|paper|pdf|file|report|article|book|text)s? (about|for)"
+    r"|what does (this|the) (document|paper|pdf|file|report|article|book|text) (do|say|propose|cover))\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -75,6 +92,24 @@ def retrieve(queries: list[str], states: list[IndexState], top_k: int = DEFAULT_
     return sorted(best.values(), key=lambda h: h["score"], reverse=True)[:top_k]
 
 
+def is_overview_question(question: str) -> bool:
+    """True for questions about a whole document rather than a specific fact."""
+    return bool(OVERVIEW_PATTERN.search(question))
+
+
+def overview_sample(index_state: IndexState, count: int = OVERVIEW_CHUNKS) -> list[dict]:
+    """The opening chunks (abstract/introduction) plus evenly spaced chunks
+    from the rest, in document order -- a cheap stand-in for reading it all."""
+    chunks = index_state.store.chunks
+    if len(chunks) <= count:
+        return list(chunks)
+    lead = chunks[:OVERVIEW_LEAD_CHUNKS]
+    rest = chunks[OVERVIEW_LEAD_CHUNKS:]
+    picks = count - len(lead)
+    step = len(rest) / picks
+    return lead + [rest[int(i * step)] for i in range(picks)]
+
+
 def answer(
     question: str,
     index_state: IndexState | list[IndexState],
@@ -88,10 +123,19 @@ def answer(
     follow-up, retrieval also runs on the previous question + this one, so
     "what about its moons?" can still find the passages about "it".
 
+    A whole-document question ("what is this paper about?") is routed to an
+    overview sample of each document instead of similarity search.
+
     Returns {"answer": str, "sources": [{"page", "text", "score", ["doc"]}, ...]}.
     """
     states = index_state if isinstance(index_state, list) else [index_state]
     recent = (history or [])[-MAX_HISTORY_TURNS:]
+
+    if is_overview_question(question):
+        per_doc = max(3, OVERVIEW_CHUNKS // len(states))
+        sources = [{**c, "score": None} for state in states for c in overview_sample(state, per_doc)]
+        answer_text = llm_client.ask(question, sources, history=recent)
+        return {"answer": answer_text, "sources": sources}
 
     queries = [question]
     if recent:
@@ -114,3 +158,9 @@ def summarize(index_state: IndexState) -> dict:
     sample = [chunks[int(i * step)] for i in range(count)]
     summary_text = llm_client.summarize(sample)
     return {"summary": summary_text, "sources": [{**c, "score": None} for c in sample]}
+
+
+def suggest_questions(index_state: IndexState) -> list[str]:
+    """Up to 4 starter questions for a document, written by the LLM from an
+    overview sample of it."""
+    return llm_client.suggest_questions(overview_sample(index_state))
