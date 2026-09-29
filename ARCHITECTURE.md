@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v1.6.0._
+_Current as of v1.7.0._
 
 ## Overview
 
@@ -26,6 +26,7 @@ documented chunking evaluation stays valid.
    | `POST /api/ingest` | Upload a PDF (≤25MB). Adds it to the session (creating one and setting the cookie if needed), max 5 documents. |
    | `POST /api/ask` | `{question}` → answer + sources, searched across all loaded documents, with the last 3 turns as context. |
    | `POST /api/summary` | `{id}` → a short summary of one document. |
+   | `POST /api/suggestions` | `{id}` → up to 4 starter questions the LLM writes from a sample of the document. |
    | `POST /api/remove` | `{id}` removes one document; no id (or removing the last one) clears the session and cookie. |
    | `GET /api/session` | The session's documents and conversation, so a page reload restores the UI. |
    | `GET /`, `/static/*` | The frontend, sent with `Cache-Control: no-cache` so browsers never run a stale script after a deploy. |
@@ -129,15 +130,40 @@ earlier; a passage found by both queries keeps its higher score. With one
 document and no history this reduces exactly to a plain `store.search()`,
 which a test enforces.
 
-**Generation.** The system prompt allows answers only from the passages,
-defines one exact refusal string ("I could not find the answer to this
-question in the document."), and declares the passages untrusted content —
-they are fenced between `<<<BEGIN PASSAGES>>>` / `<<<END PASSAGES>>>`, so an
-instruction inside a PDF is reported, not obeyed (see
-`tests/test_prompt_injection.py`). When earlier turns are sent, one more
-rule is added: they may be used only to resolve references, never as a
-source of facts. Without history the prompt is byte-identical to the one the
-evaluation used.
+**Routing whole-document questions.** Similarity search answers "where
+does the document talk about X". A question about the document as a whole
+("what is this paper about?", "main contribution", "summarize the key
+findings") resembles no passage — in testing it retrieved the reference
+list, and the assistant refused. `pipeline.is_overview_question()` (a
+regular expression, tested against both kinds of question) routes these to
+`overview_sample()`: the document's first two chunks (abstract/introduction)
+plus evenly spaced chunks, eight passages in total, split across documents.
+
+**Generation (v1.7.0 prompt).** The LLM's job is to answer, not to quote. The
+system prompt asks for a direct answer first, then explanation in its own
+words, combining passages where that helps; to match the level the user asks
+for; plain text with `- ` bullets (no LaTeX, tables or headings); a page
+citation after each claim; and, when the passages cover only part of the
+question, to answer that part and say what's missing. The grounding
+contract is unchanged: no facts, numbers or examples beyond the passages,
+one exact refusal string when nothing is relevant, and passages declared
+untrusted content fenced between `<<<BEGIN PASSAGES>>>` / `<<<END
+PASSAGES>>>`, so an instruction inside a PDF is reported, not obeyed
+(`tests/test_prompt_injection.py`). With earlier turns, one more rule says
+they may resolve references but are never evidence.
+
+**Fallback model.** If the main model is still rate limited after retries
+(on Groq's free tier this is usually the 200k-tokens-per-day quota), and
+`LLM_FALLBACK_MODEL` is set, the same messages go once to the fallback model
+(`openai/gpt-oss-20b`, which has its own quota). An empty reply — which
+reasoning models occasionally return — is retried once, then reported as an
+error rather than shown as a blank answer.
+
+**Follow-up actions and suggestions.** "Explain more simply" and "Go deeper"
+send an ordinary follow-up (so the last turns resolve "that"), each
+restating the grounding rule, since asking for "more" invited padding from
+outside knowledge in testing. Suggested questions come from a separate
+prompt over the overview sample; any failure just omits them.
 
 **Sources.** The retrieved passages are returned with every answer,
 independent of whether the model cites a page itself, so the user can

@@ -299,3 +299,18 @@ understood and explainable without AI help (the task requires it):
 - It made the version a single source of truth with a test, since an
   earlier release had shipped a stale-cache bug caused by a forgotten
   version bump.
+
+## Making the LLM's Role Real (v1.7.0)
+
+- The user said the assistant felt like a text extractor. Before changing
+  anything, the AI coding assistant ran real questions and traced the
+  weak answers to causes (retrieval returning the reference list for
+  whole-document questions; a prompt that asked for brevity and all-or-
+  nothing answers), rather than guessing.
+- Its own testing surfaced a grounding failure it had just introduced
+  ("Go deeper" padded a short document with outside knowledge); it
+  reported and fixed it, and re-tested.
+- Its test runs used up the LLM provider's daily quota — which the live
+  site shares. It said so and added a fallback model, and it labelled which
+  model produced each result instead of presenting fallback-model output as
+  if it came from the main model.

@@ -5,7 +5,7 @@ small, self-contained RAG (Retrieval-Augmented Generation) tool for asking
 grounded questions about uploaded PDFs. It started as a single-document
 tool; the optional enhancements listed originally (multiple documents,
 conversation history, document summary) have since been built and are now
-part of the requirements below. _Current as of v1.6.0._
+part of the requirements below. _Current as of v1.7.0._
 
 ## Problem
 
@@ -64,6 +64,9 @@ Build a document question-answering tool that:
 | FR10 | Resolve follow-up questions ("how many moons does it have?") from recent turns, without using earlier answers as evidence. | Natural conversation without weakening grounding. |
 | FR11 | Produce a short summary of a chosen document, citing pages. | Orientation before asking questions. |
 | FR12 | Treat document text as untrusted: instructions inside a PDF must not change the assistant's behavior. | Uploaded files are attacker-controllable input to the prompt. |
+| FR13 | Answer whole-document questions ("what is this about?") from an overview of the document, not similarity search. | No single passage resembles such a question. |
+| FR14 | Explain rather than quote: adapt the level on request, combine passages, and answer partially with what's missing instead of refusing outright. | The LLM's value over retrieval alone. |
+| FR15 | Keep answering when the main model's quota runs out (configurable fallback model). | Free-tier daily limits would otherwise take the live app down. |
 
 ## Non-Functional Requirements
 
@@ -101,5 +104,5 @@ Build a document question-answering tool that:
 - Python, PyMuPDF, sentence-transformers, FAISS, a configurable
   OpenAI-compatible LLM API, and a FastAPI backend serving a static
   HTML/CSS/JS frontend.
-- Must actually run and be tested before being called done — 56 automated
+- Must actually run and be tested before being called done — 74 automated
   tests plus real-browser checks of the deployed app (see `README.md`).

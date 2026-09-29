@@ -5,10 +5,10 @@ existed) and is updated as real decisions, failures, and changes happen
 during implementation and testing. Nothing below is fabricated — entries
 are dated and note what actually happened.
 
-> **STATUS (2026-09-29, v1.6.0): feature-complete for the task brief and
+> **STATUS (2026-09-29, v1.7.0): feature-complete for the task brief and
 > deployed.** All core requirements plus the three optional enhancements
 > (multiple documents, follow-up questions, document summaries) are built,
-> covered by 56 automated tests, and verified in a real browser against
+> covered by 74 automated tests, and verified in a real browser against
 > the live deployment at https://ai-doc-assistant.duckdns.org. The
 > application accepts any PDF supplied at runtime — no document-specific
 > content, questions, page numbers or answers are hardcoded in the
@@ -310,3 +310,25 @@ date, what changed, why, and what (if anything) failed._
     - The reading-line animation runs while searching, and the notes' delays are 0.12s–0.30s (0s under reduced motion).
     - At 375px the body fits the viewport, the ask box and footer are visible, and nothing overflows horizontally.
     - The full regression passed (citations, follow-ups, refusal, multiple documents, summary, scroll position) with 0 console errors. 56 tests pass.
+- **2026-09-29** — v1.7.0: making the LLM's role real. The user said the assistant "feels like a text extractor" in practice, and asked what the LLM is for.
+  - **Diagnosis first**, with three questions against v1.6.0 before changing anything:
+    - *"What is the main contribution of this paper, in simple words?"* was **refused**. Similarity search had retrieved the reference list (pages 12–13) and a table: a whole-document question resembles no single passage.
+    - *"Explain multi-head attention to a beginner"* came back full of LaTeX and jargon. The prompt said "be concise" and nothing about the reader's level.
+    - *"How is self-attention better than recurrent layers?"* was a good three-point synthesis of a table and two paragraphs, which proved the LLM could do more than the prompt was asking of it.
+  - **Changes:**
+    1. **Query routing:** `is_overview_question()` sends whole-document questions to `overview_sample()` (first two chunks plus evenly spaced ones, 8 in total) instead of similarity search. The regex was tuned against 13 overview and 8 specific questions. The first version wrongly caught "What is the summary statistic in table 2?" and missed "whats the paper about", "summary?" and "primary contribution"; all are now covered by parametrised tests.
+    2. **Prompt:** the model now answers first, then explains in its own words and combines passages. It matches the requested level, writes plain text with bullets (no LaTeX), cites after each claim, and gives partial answers that say what's missing. The grounding contract (no outside facts, exact refusal, untrusted passages) is unchanged, and a test asserts it stays in the prompt.
+    3. **Suggested questions** after upload (`/api/suggestions`).
+    4. **"Explain more simply" / "Go deeper"** under each answer.
+    5. **Fallback model** on rate limit, plus one retry on an empty reply. The UI also converts common LaTeX to readable text, because the smaller fallback model ignores the no-LaTeX rule.
+  - **Found and fixed during testing:**
+    - The first "Go deeper" answer on the 4-page demo PDF added a fact that isn't in the document ("Earth's size and composition allow it to retain a breathable atmosphere"). Asking for "more" on a thin document invited padding. Both follow-up instructions now restate the grounding rule. Re-run: *"The passages do not give any additional reasons or details beyond that."*
+    - One comparison question returned an **empty** answer from the reasoning model. This is now retried once and otherwise reported as an error.
+    - A pre-existing bug: a 429 on the final retry surfaced as a generic "API call failed" instead of a rate-limit error.
+    - A regex written through a shell heredoc turned `\b` into a backspace character. It was caught because the pattern then matched nothing.
+  - **Quota, an operational finding.** Testing exhausted Groq's free-tier daily quota for `openai/gpt-oss-120b` (200,000 tokens/day, rolling). The live site shares that key, so users would have seen "try again later". That is why the fallback exists. All v1.7.0 answer checks therefore ran on the fallback `openai/gpt-oss-20b`, including the answer-level A/B re-run (`reports/answer_eval_v1.7.md`):
+    - Config B (1000/200/5): 5 of 5 answerable questions correct with page citations; the USD-cost question refused.
+    - Config A (300/50/3): one answer is now a partial one ("based on stacked self-attention… the passages do not state what it removes") instead of a refusal; 3 were still refused, which confirms the chunk-size finding; BLEU 41.0 (the page-8 figure).
+    - All 7 LLM-dependent tests (prompt injection, refusal, grounded answers) pass with the new prompt.
+    - A re-run on the 120b model is pending its quota reset; it is the stronger model, so this is the conservative direction.
+  - Tests: 67 run without an API key (plus 7 that call the LLM). They cover routing, the overview sample, the suggestions parser and endpoint, the fallback (rate-limited primary falls back, no fallback reports the rate limit, a 500 does not trigger the fallback), and the grounding contract in the prompt.
