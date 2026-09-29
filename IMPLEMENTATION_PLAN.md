@@ -112,6 +112,8 @@ Added later, each with its reasoning in `DECISIONS.md`:
   and question size limits.
 - Clickable page citations and margin-note sources ("Annotated Margin",
   `DESIGN.md`), light/dark themes, keyboard-accessible upload.
+- Document retention: uploads are never written to disk; extracted text is
+  deleted on removal or after 2 hours idle, enforced by a background task.
 - `pytest` suite (48 tests) with GitHub Actions CI, CodeQL and Dependabot.
 - Docker image (CPU-only PyTorch) deployed to AWS EC2 behind Nginx with
   HTTPS.

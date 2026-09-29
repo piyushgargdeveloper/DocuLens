@@ -5,16 +5,24 @@ existed) and is updated as real decisions, failures, and changes happen
 during implementation and testing. Nothing below is fabricated — entries
 are dated and note what actually happened.
 
-> **STATUS (2026-09-19): Core pipeline implemented, tested end-to-end,
-> reviewed for security, and validated against three documents.**
-> The application accepts any PDF supplied by the user at runtime — no
-> document-specific content, questions, page numbers, or answers are
-> hardcoded anywhere in the source. It has been validated against a
-> minimal synthetic demo PDF (`sample_docs/sample.pdf`) and a real-world
-> multi-page document (see "Real-World Validation" below) to confirm the
-> pipeline behaves correctly on realistic document structure, not just a
-> toy example, plus a purpose-built malicious PDF used to verify that
-> instructions embedded in document text are not obeyed.
+> **STATUS (2026-09-29, v1.4.2): feature-complete for the task brief and
+> deployed.** All core requirements plus the three optional enhancements
+> (multiple documents, follow-up questions, document summaries) are built,
+> covered by 48 automated tests, and verified in a real browser against
+> the live deployment at https://ai-doc-assistant.duckdns.org. The
+> application accepts any PDF supplied at runtime — no document-specific
+> content, questions, page numbers or answers are hardcoded in the
+> application source — and uploaded PDFs are never written to disk. The
+> pipeline was validated on a minimal synthetic demo PDF
+> (`sample_docs/sample.pdf`), a real-world 15-page paper (see "Real-World
+> Validation" below), and a purpose-built malicious PDF used to verify
+> that instructions embedded in document text are not obeyed.
+> **Open item:** re-running the two-configuration evaluation on the
+> document provided by the task organizers, once it is available.
+>
+> _Original status (2026-09-19): core pipeline implemented, tested
+> end-to-end, reviewed for security, and validated against three
+> documents._
 
 ## Initial / Planned Decisions
 
@@ -250,3 +258,4 @@ date, what changed, why, and what (if anything) failed._
   - **Mobile layout bug found while measuring the scroll fix.** At 375px the conversation pane reported no overflow even with long answers. In the stacked mobile layout `.desk` kept the default `min-height: auto`, so it grew to its content (631px in ~545px of space), and `body { overflow: hidden }` clipped the bottom. Once the conversation was long enough, the ask box was pushed below the screen and the messages could not scroll. Fixed with `min-height: 0`; re-measured: body 740/740px, pane scrolls, ask box visible.
   - The model's markdown list markers (`* item`, `- item`) are now shown as `•` bullets, since answers are rendered as plain text.
   - 48 tests pass; the full browser regression (citations, margin notes, mobile notes, follow-ups, refusal, multi-document, summary, reload) passed with 0 console errors.
+- **2026-09-29** — Final documentation pass for v1.4.2. The status block at the top of this file was still dated 2026-09-19; it is now current, with the one open item (the organizer-provided document) stated explicitly. `AI_USAGE.md` gained entries for the v1.4.1–v1.4.2 work and an updated "must be able to explain" list (multi-document retrieval, follow-ups, document retention, frontend safety). `README.md` Usage now says uploaded PDFs are not saved. `CONTRIBUTING.md`'s manual checks now include answer scroll position and a long conversation on a phone (the v1.4.2 mobile bug would have been caught by it). `DESIGN.md` records the reading-order rule, and `IMPLEMENTATION_PLAN.md` lists document retention among post-plan additions. On the server: the four intermediate deploy tags (v1.2.0–v1.4.0) were removed, keeping the running v1.4.2 image, v1.4.1 for rollback, and the original full build (the base the thin update images are built on). Disk use barely changed, which is expected: those images only differed by thin code layers on a shared base. The thin-update Dockerfile was moved from `/tmp` (which can be cleared on reboot) to the home directory, so future deploys don't depend on a temporary file.
