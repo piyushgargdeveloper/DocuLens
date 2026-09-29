@@ -148,7 +148,7 @@ function citedPages(inner) {
  * A tab whose page is among this answer's sources becomes a button that
  * opens the sources and highlights that passage.
  */
-function renderAnswerText(container, text, sources, details) {
+function renderAnswerText(container, text, notes) {
   text = plain(text);
   let last = 0;
   for (const match of text.matchAll(CITATION)) {
@@ -158,7 +158,7 @@ function renderAnswerText(container, text, sources, details) {
 
     container.append(text.slice(last, match.index).replace(/\s+$/, ""));
     for (const page of pages) {
-      const slip = findSlip(details, page, doc);
+      const slip = findSlip(notes, page, doc);
       const tab = document.createElement(slip ? "button" : "span");
       tab.className = "cite";
       tab.textContent = `p. ${page}`;
@@ -166,7 +166,7 @@ function renderAnswerText(container, text, sources, details) {
       if (slip) {
         tab.type = "button";
         tab.setAttribute("aria-label", `Show the passage from ${tab.title}`);
-        tab.addEventListener("click", () => markSlip(details, slip));
+        tab.addEventListener("click", () => markSlip(notes, slip));
       }
       container.append(tab);
     }
@@ -175,9 +175,9 @@ function renderAnswerText(container, text, sources, details) {
   container.append(text.slice(last));
 }
 
-function findSlip(details, page, doc) {
-  if (!details) return null;
-  const slips = [...details.querySelectorAll(".slip")];
+function findSlip(notes, page, doc) {
+  if (!notes) return null;
+  const slips = [...notes.list.querySelectorAll(".slip")];
   return (
     slips.find((s) => Number(s.dataset.page) === page && (!doc || s.dataset.doc === doc)) ||
     slips.find((s) => Number(s.dataset.page) === page) ||
@@ -185,65 +185,92 @@ function findSlip(details, page, doc) {
   );
 }
 
-function markSlip(details, slip) {
-  details.open = true;
-  for (const s of details.querySelectorAll(".slip.marked")) s.classList.remove("marked");
+function setNotesOpen(notes, open) {
+  notes.panel.classList.toggle("open", open);
+  notes.toggle.setAttribute("aria-expanded", String(open));
+  notes.toggle.textContent = `${open ? "Hide" : "Show"} ${notes.label.toLowerCase()} (${notes.count})`;
+}
+
+function markSlip(notes, slip) {
+  setNotesOpen(notes, true);
+  for (const s of notes.list.querySelectorAll(".slip.marked")) s.classList.remove("marked");
   // Restart the highlighter animation even when the same tab is clicked twice.
   void slip.offsetWidth;
   slip.classList.add("marked");
   slip.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
 
-function buildSources(sources, label) {
+/**
+ * Source passages as margin notes. On a wide conversation they sit beside
+ * the answer (CSS container query); on a narrow one they fold under it
+ * behind a Show/Hide button.
+ */
+function buildNotes(sources, label) {
   if (!sources || sources.length === 0) return null;
 
   // Only name the document when more than one is loaded -- otherwise it's noise.
   const multiDoc = new Set(sources.map((s) => s.doc)).size > 1 || docList.children.length > 1;
 
-  const details = document.createElement("details");
-  details.className = "sources";
-  const summary = document.createElement("summary");
-  summary.textContent = `${label} (${sources.length})`;
-  details.appendChild(summary);
-
+  const panel = document.createElement("aside");
+  panel.className = "notes";
+  panel.setAttribute("aria-label", label);
   const list = document.createElement("ol");
   list.className = "slips";
+  panel.appendChild(list);
+
   for (const src of sources) {
     const node = sourceItemTemplate.content.cloneNode(true);
     const slip = node.querySelector(".slip");
     slip.dataset.page = src.page;
     slip.dataset.doc = src.doc || "";
     node.querySelector(".slip-page").textContent =
-      multiDoc && src.doc ? `${src.doc}, page ${src.page}` : `Page ${src.page}`;
+      multiDoc && src.doc ? `${src.doc}, p. ${src.page}` : `Page ${src.page}`;
     node.querySelector(".slip-score").textContent =
       typeof src.score === "number" ? `similarity ${src.score.toFixed(2)}` : "";
     // PDF extraction keeps the page's hard line breaks; rejoin them so the
     // passage reads as prose (blank lines between paragraphs are kept).
     node.querySelector(".slip-text").textContent = src.text.replace(/(?<!\n)\n(?!\n)/g, " ");
+    // In the margin, notes are clipped to a few lines; clicking one opens it.
+    slip.addEventListener("click", () => slip.classList.toggle("expanded"));
     list.appendChild(node);
   }
-  details.appendChild(list);
-  return details;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "btn btn-text notes-toggle";
+  const notes = { panel, list, toggle, label, count: sources.length };
+  toggle.addEventListener("click", () => setNotesOpen(notes, !panel.classList.contains("open")));
+  setNotesOpen(notes, false);
+  return notes;
 }
 
 /** Turn a pending message into a finished answer (or add a new one). */
 function showAnswer(el, text, sources, { heading, sourcesLabel = "Sources" } = {}) {
-  el.className = "msg msg-assistant";
+  el.className = "msg msg-assistant answer";
+  el.removeAttribute("role");
   el.replaceChildren();
 
+  const main = document.createElement("div");
+  main.className = "answer-main";
   if (heading) {
     const h = document.createElement("p");
     h.className = "msg-heading";
     h.textContent = heading;
-    el.appendChild(h);
+    main.appendChild(h);
   }
 
-  const details = buildSources(sources, sourcesLabel);
+  const notes = buildNotes(sources, sourcesLabel);
   const body = document.createElement("p");
   body.className = "msg-text";
-  renderAnswerText(body, text, sources, details);
-  el.appendChild(body);
-  if (details) el.appendChild(details);
+  renderAnswerText(body, text, notes);
+  main.appendChild(body);
+  el.appendChild(main);
+
+  if (notes) {
+    el.classList.add("has-notes");
+    main.appendChild(notes.toggle);
+    el.appendChild(notes.panel);
+  }
   scrollToBottom();
 }
 
@@ -299,6 +326,7 @@ async function uploadFirst(file) {
     return;
   }
 
+  document.getElementById("reading-name").textContent = `Reading ${file.name}…`;
   showView("indexing");
   const data = await ingest(file);
   fileInput.value = "";
@@ -352,7 +380,7 @@ async function summarizeDoc(doc, button) {
     return;
   }
   // The heading already says "Summary of …"; drop the model's own "Summary:" lead-in.
-  const summary = data.summary.replace(/^\s*\**summary\**:?\**\s*/i, "");
+  const summary = data.summary.replace(/^\s*\**(?:document\s+)?summary\**:?\**\s*/i, "");
   showAnswer(pending, summary, data.sources, {
     heading: `Summary of ${data.filename}`,
     sourcesLabel: "Passages used",
@@ -378,13 +406,17 @@ addFileInput.addEventListener("change", () => {
   if (addFileInput.files.length > 0) uploadAdditional(addFileInput.files[0]);
 });
 
-// The "Add another PDF" label is focusable; let Enter/Space open the picker like a button.
-addBtn.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" || e.key === " ") {
-    e.preventDefault();
-    addFileInput.click();
-  }
-});
+// The upload labels are focusable; let Enter/Space open the file picker like a button.
+function openPickerOnKey(label, input) {
+  label.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      input.click();
+    }
+  });
+}
+openPickerOnKey(addBtn, addFileInput);
+openPickerOnKey(dropzone, fileInput);
 
 // Drag-and-drop on the dropzone, with a visual hover state.
 dropzone.addEventListener("dragover", (e) => {

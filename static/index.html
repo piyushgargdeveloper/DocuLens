@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" />
   <!-- ?v= changes with each release so browsers holding an older cached copy fetch the new file. -->
-  <link rel="stylesheet" href="/static/style.css?v=1.3.0" />
+  <link rel="stylesheet" href="/static/style.css?v=1.4.0" />
 </head>
 <body data-view="upload">
   <header class="topbar">
@@ -38,23 +38,36 @@
 
     <main class="desk">
       <!-- Empty / upload state -->
-      <section id="upload-view" class="sheet sheet-intro">
-        <h1 class="intro-title">Ask your PDF a question. Get the answer and the page it came from.</h1>
+      <section id="upload-view" class="title-page has-specimen">
+        <div class="title-copy">
+        <h1 class="intro-title">Every answer, with the page it came from.</h1>
         <p class="intro-body">
-          Answers use only the text in your document. If the document doesn't
-          say, the assistant tells you so instead of guessing.
+          Upload a PDF and ask it questions. Answers use only the document's
+          text, and the passage behind each one sits right beside it. If the
+          document doesn't say, you'll be told so instead of a guess.
         </p>
-        <label for="file-input" class="dropzone" id="dropzone">
+        <label for="file-input" class="dropzone" id="dropzone" tabindex="0" role="button">
           <span class="dropzone-title">Choose a PDF or drop it here</span>
           <span class="dropzone-hint">Up to 25MB. PDFs with selectable text work best; scanned images can't be read.</span>
         </label>
         <input id="file-input" type="file" accept="application/pdf" hidden />
         <p id="upload-error" class="error-text" role="alert" hidden></p>
+        </div>
+
+        <!-- A static specimen of an answer and its margin note (decorative). -->
+        <figure class="specimen" aria-hidden="true">
+          <p class="specimen-q">How many moons does Saturn have?</p>
+          <p class="specimen-a">Saturn has over 140 confirmed moons, the most of any planet<span class="cite">p. 4</span>.</p>
+          <div class="slip specimen-note">
+            <div class="slip-head"><span class="slip-page">Page 4</span></div>
+            <p class="slip-text">Many planets have natural satellites called moons. Earth has one moon. Saturn has over 140 confirmed moons, the most of any planet.</p>
+          </div>
+        </figure>
       </section>
 
       <!-- Indexing state -->
-      <section id="indexing-view" class="sheet sheet-intro" hidden>
-        <p class="status-line"><span class="spinner" aria-hidden="true"></span> Reading your PDF and preparing it for questions&hellip;</p>
+      <section id="indexing-view" class="title-page" hidden>
+        <p class="reading-line" role="status"><span class="spinner" aria-hidden="true"></span> <span id="reading-name">Reading your PDF&hellip;</span></p>
       </section>
 
       <!-- Chat -->
@@ -66,7 +79,7 @@
           <textarea
             id="question-input"
             class="question-input"
-            placeholder="Ask about your documents"
+            placeholder="Ask a question about your documents"
             maxlength="1000"
             rows="1"
             required
@@ -103,6 +116,6 @@
     </li>
   </template>
 
-  <script src="/static/app.js?v=1.3.0"></script>
+  <script src="/static/app.js?v=1.4.0"></script>
 </body>
 </html>

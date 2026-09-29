@@ -1,49 +1,44 @@
 /*
- * "Reading desk" theme: the page is a cool desk, the working area is a sheet
- * of paper, and highlighter yellow is reserved for one job -- marking the
- * passage an answer was taken from.
+ * "Annotated Margin" -- see DESIGN.md. Ink on paper, no UI accent colour.
+ * Highlighter yellow appears only where the document is cited, and every
+ * answer carries its source passages as notes in the margin.
  */
 
 :root {
-  --desk: #E6EBF1;
-  --paper: #FBFCFE;
-  --ink: #1B2A41;
-  --ink-soft: #56667D;
-  --rule: #D5DCE5;
-  --blue: #2F5DDA;
-  --blue-tint: #E7EDFC;
+  --desk: #E3E8EE;
+  --paper: #FBFCFD;
+  --ink: #17233A;
+  --ink-soft: #56637A;
+  --rule: #D3DAE3;
   --highlight: #FFE45C;
-  --highlight-ink: #1B2A41;
+  --highlight-ink: #17233A;
   --wash-strength: 45%;
-  --error: #B42318;
-  --error-tint: #FDECEA;
+  --error: #A8201A;
 
   --sans: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
   --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
 
-  /* Type scale: 1.2 (minor third) from a 16px base. */
+  /* Scale: 1.2 steps from a 16px base, plus one title-page size. */
   --text-sm: 0.833rem;
   --text-md: 1rem;
-  --text-lg: 1.2rem;
-  --text-xl: 1.728rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.44rem;
+  --text-title: clamp(2.25rem, 1.4rem + 3.6vw, 3.75rem);
 
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --desk: #10151D;
-    --paper: #18202C;
-    --ink: #E4EAF3;
-    --ink-soft: #9AA8BC;
-    --rule: #2B3646;
-    --blue: #7EA0FF;
-    --blue-tint: #22304A;
+    --desk: #0F141B;
+    --paper: #161D27;
+    --ink: #E6EBF2;
+    --ink-soft: #98A5B8;
+    --rule: #2A3441;
     --highlight: #E8C83F;
-    --highlight-ink: #10151D;
+    --highlight-ink: #0F141B;
     --wash-strength: 26%;
     --error: #FF8A80;
-    --error-tint: #3A1E1E;
     color-scheme: dark;
   }
 }
@@ -76,7 +71,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 
@@ -94,7 +89,7 @@ body {
 .topbar {
   flex: none;
   width: 100%;
-  max-width: 1120px;
+  max-width: 1360px;
   margin: 0 auto;
   padding: 14px 24px;
 }
@@ -104,7 +99,6 @@ body {
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  font-size: var(--text-md);
   letter-spacing: -0.01em;
 }
 
@@ -124,9 +118,9 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 20px;
+  gap: 28px;
   width: 100%;
-  max-width: 1120px;
+  max-width: 1360px;
   margin: 0 auto;
   padding: 0 24px 24px;
 }
@@ -143,58 +137,109 @@ body:not([data-view="chat"]) .shelf {
   display: none;
 }
 
-.sheet {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-}
+/* ---------- Title page (upload / reading) ---------- */
 
-/* ---------- Upload / indexing ---------- */
-
-.sheet-intro {
+.title-page {
   margin: auto 0;
   width: 100%;
-  max-width: 640px;
-  align-self: center;
-  padding: 44px 44px 40px;
+  max-width: 760px;
+  padding: 24px 0 8vh;
+}
+
+.specimen {
+  display: none;
+}
+
+/* On a wide desk the title page shows what it promises: an answer, its
+   yellow page tab, and the margin note being highlighted once on load. */
+@media (min-width: 1100px) {
+  .title-page.has-specimen {
+    max-width: 1180px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    column-gap: 80px;
+    align-items: center;
+  }
+
+  .specimen {
+    display: block;
+    margin: 0;
+    padding: 28px 28px 30px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+  }
+}
+
+.specimen-q {
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.specimen-a {
+  font-family: var(--serif);
+  font-size: var(--text-lg);
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+
+.slip.specimen-note {
+  border-left-color: var(--highlight);
+  background-size: 100% 100%;
+  animation: highlighter 0.7s ease-out 0.6s backwards;
 }
 
 .intro-title {
   font-family: var(--serif);
   font-weight: 600;
-  font-size: var(--text-xl);
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  margin: 0 0 14px;
-  text-wrap: balance;
+  font-size: var(--text-title);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 0 0 20px;
+  max-width: 16ch;
 }
 
 .intro-body {
+  font-family: var(--serif);
+  font-size: var(--text-lg);
+  line-height: 1.6;
   color: var(--ink-soft);
-  margin: 0 0 28px;
-  max-width: 52ch;
+  margin: 0 0 36px;
+  max-width: 46ch;
 }
 
 .dropzone {
+  --wash: color-mix(in srgb, var(--highlight) var(--wash-strength), var(--paper));
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-width: 560px;
   cursor: pointer;
-  border: 2px dashed var(--rule);
-  border-radius: 6px;
-  padding: 28px 24px;
-  transition: border-color 0.15s, background-color 0.15s;
+  border: 1.5px dashed var(--ink-soft);
+  border-radius: 3px;
+  padding: 26px 24px;
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--wash), var(--wash));
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
 }
 
-.dropzone:hover,
+.dropzone:hover {
+  border-color: var(--ink);
+  border-style: solid;
+}
+
+/* A PDF held over the drop area gets the same highlighter stroke as a cited passage. */
 .dropzone.dragging {
-  border-color: var(--blue);
-  background: var(--blue-tint);
+  border-color: var(--ink);
+  border-style: solid;
+  background-size: 100% 100%;
+  transition: background-size 0.45s ease-out;
 }
 
 .dropzone-title {
   font-weight: 700;
-  color: var(--blue);
+  font-size: var(--text-lg);
 }
 
 .dropzone-hint {
@@ -202,19 +247,21 @@ body:not([data-view="chat"]) .shelf {
   color: var(--ink-soft);
 }
 
-.status-line {
+.reading-line {
+  font-family: var(--serif);
+  font-size: var(--text-xl);
+  line-height: 1.35;
+  margin: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 0;
-  color: var(--ink-soft);
+  gap: 14px;
 }
 
 .spinner {
   width: 16px;
   height: 16px;
   border: 2px solid var(--rule);
-  border-top-color: var(--blue);
+  border-top-color: var(--ink);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
@@ -236,7 +283,7 @@ body:not([data-view="chat"]) .shelf {
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: 700;
-  border-radius: 4px;
+  border-radius: 3px;
   padding: 8px 14px;
   cursor: pointer;
   border: 1px solid transparent;
@@ -246,36 +293,37 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .btn-primary {
-  background: var(--blue);
-  border-color: var(--blue);
+  background: var(--ink);
+  border-color: var(--ink);
   color: var(--paper);
-  padding: 10px 20px;
+  padding: 10px 22px;
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .btn-quiet {
-  border-color: var(--rule);
-  background: var(--paper);
+  border-color: var(--ink-soft);
   text-align: center;
 }
 
 .btn-quiet:hover {
-  border-color: var(--blue);
-  color: var(--blue);
+  border-color: var(--ink);
+  background: var(--paper);
 }
 
 .btn-text {
   padding: 4px 6px;
-  color: var(--blue);
   font-weight: 400;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
 }
 
 .btn-text:hover {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 .btn-text:disabled {
@@ -289,7 +337,7 @@ body:not([data-view="chat"]) .shelf {
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 4px;
+  border-radius: 3px;
   background: none;
   cursor: pointer;
   color: var(--ink-soft);
@@ -305,14 +353,13 @@ body:not([data-view="chat"]) .shelf {
 
 .btn-icon:hover {
   color: var(--error);
-  background: var(--error-tint);
 }
 
 /* ---------- Shelf ---------- */
 
 .shelf {
   flex: none;
-  width: 260px;
+  width: 240px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -332,7 +379,6 @@ body:not([data-view="chat"]) .shelf {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
   overflow-y: auto;
   min-height: 0;
 }
@@ -341,13 +387,8 @@ body:not([data-view="chat"]) .shelf {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 2px 10px;
-  padding: 10px 8px 6px;
-  border-radius: 4px;
-}
-
-.doc-item:hover,
-.doc-item:focus-within {
-  background: color-mix(in srgb, var(--paper) 60%, transparent);
+  padding: 10px 0 8px;
+  border-bottom: 1px solid var(--rule);
 }
 
 .doc-icon {
@@ -391,8 +432,7 @@ body:not([data-view="chat"]) .shelf {
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
+  padding-top: 4px;
 }
 
 .shelf-actions .btn-text {
@@ -409,47 +449,51 @@ body:not([data-view="chat"]) .shelf {
   padding: 8px 0;
 }
 
-/* ---------- Chat ---------- */
+/* ---------- Conversation ---------- */
 
 .sheet-chat {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
 }
 
 .messages {
+  container-type: inline-size;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 32px clamp(16px, 5vw, 48px) 24px;
+  gap: 14px;
+  padding: 8px clamp(16px, 4vw, 48px) 32px;
 }
 
 .msg {
-  max-width: 68ch;
+  max-width: 64ch;
   margin: 0;
 }
 
+/* A question is set like the question in a printed interview, and each
+   exchange is separated from the last by a hairline. */
 .msg-user {
-  align-self: flex-end;
-  max-width: 52ch;
-  background: var(--blue-tint);
-  padding: 10px 14px;
-  border-radius: 12px 12px 2px 12px;
+  max-width: none;
+  font-weight: 700;
+  font-size: var(--text-lg);
+  line-height: 1.4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-.msg-assistant {
-  align-self: flex-start;
+  padding-top: 26px;
+  border-top: 1px solid var(--rule);
+  margin-top: 10px;
 }
 
 .msg-text {
   font-family: var(--serif);
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -457,23 +501,24 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .msg-heading {
-  font-family: var(--sans);
   font-size: var(--text-sm);
   font-weight: 700;
   color: var(--ink-soft);
   margin: 0 0 6px;
 }
 
-.msg-note .msg-text {
+.msg-note:not(.msg-pending) {
+  padding-top: 24px;
+}
+
+.msg-note .msg-text,
+.msg-pending .msg-text {
   font-family: var(--sans);
   font-size: var(--text-md);
   color: var(--ink-soft);
 }
 
 .msg-pending .msg-text {
-  font-family: var(--sans);
-  font-size: var(--text-md);
-  color: var(--ink-soft);
   animation: breathe 1.4s ease-in-out infinite;
 }
 
@@ -482,23 +527,22 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .msg-error {
-  align-self: flex-start;
   color: var(--error);
-  border-left: 3px solid var(--error);
+  border-left: 2px solid var(--error);
   padding: 2px 0 2px 12px;
 }
 
-/* Page citation inside an answer: the one bold element of the design. */
+/* Page citation inside an answer: the signature element. */
 .cite {
   font-family: var(--sans);
   font-size: var(--text-sm);
   font-weight: 700;
   line-height: 1;
   display: inline-block;
-  vertical-align: 0.1em;
+  vertical-align: 0.12em;
   margin: 0 1px 0 5px;
   padding: 3px 6px 2px;
-  border-radius: 3px;
+  border-radius: 2px;
   border: none;
   background: var(--highlight);
   color: var(--highlight-ink);
@@ -513,46 +557,57 @@ button.cite:hover {
   text-decoration: underline;
 }
 
-/* ---------- Sources ---------- */
+/* ---------- Answer + margin notes ---------- */
 
-.sources {
-  margin-top: 14px;
-  font-size: var(--text-sm);
+.answer {
+  max-width: none;
 }
 
-.sources > summary {
-  cursor: pointer;
-  color: var(--ink-soft);
-  width: fit-content;
+.answer-main {
+  max-width: 64ch;
+}
+
+.notes-toggle {
+  margin-top: 10px;
   padding: 2px 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
 }
 
-.sources > summary:hover {
-  color: var(--blue);
+.notes {
+  display: none;
+  margin-top: 12px;
+}
+
+.notes.open {
+  display: block;
 }
 
 .slips {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .slip {
-  padding: 10px 14px 12px;
-  border-left: 3px solid var(--rule);
-  background: var(--desk);
-  border-radius: 0 4px 4px 0;
+  --wash: color-mix(in srgb, var(--highlight) var(--wash-strength), var(--paper));
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--rule);
   scroll-margin: 24px;
+  font-size: var(--text-sm);
+  background-image: linear-gradient(var(--wash), var(--wash));
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
 }
 
 .slip-head {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .slip-page {
@@ -568,24 +623,54 @@ button.cite:hover {
 .slip-text {
   margin: 0;
   font-family: var(--serif);
-  font-size: 0.95rem;
-  line-height: 1.6;
+  font-size: 0.9375rem;
+  line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 /* A clicked citation sweeps a highlighter stroke across its passage. */
 .slip.marked {
-  --wash: color-mix(in srgb, var(--highlight) var(--wash-strength), var(--paper));
   border-left-color: var(--highlight);
-  background-image: linear-gradient(var(--wash), var(--wash));
-  background-repeat: no-repeat;
   background-size: 100% 100%;
   animation: highlighter 0.5s ease-out;
 }
 
 @keyframes highlighter {
   from { background-size: 0% 100%; }
+}
+
+/* Wide enough for a margin: the answer becomes a two-column spread and its
+   evidence is always visible beside it. */
+@container (min-width: 860px) {
+  .answer.has-notes {
+    display: grid;
+    grid-template-columns: minmax(0, 64ch) minmax(220px, 300px);
+    justify-content: space-between;
+    column-gap: 48px;
+    align-items: start;
+  }
+
+  .answer.has-notes .notes-toggle {
+    display: none;
+  }
+
+  .answer.has-notes .notes {
+    display: block;
+    margin-top: 4px;
+  }
+
+  /* Margin notes stay short until one is cited or opened. */
+  .slip:not(.marked):not(.expanded) .slip-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+  }
+
+  .slip {
+    cursor: pointer;
+  }
 }
 
 /* ---------- Ask form ---------- */
@@ -595,7 +680,7 @@ button.cite:hover {
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  padding: 14px clamp(16px, 5vw, 48px) 18px;
+  padding: 14px clamp(16px, 4vw, 48px) 18px;
   border-top: 1px solid var(--rule);
 }
 
@@ -606,19 +691,23 @@ button.cite:hover {
   color: var(--ink);
   background: var(--paper);
   padding: 10px 12px;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
+  border: 1px solid var(--ink-soft);
+  border-radius: 3px;
   resize: none;
   max-height: 140px;
 }
 
-.question-input:focus {
-  outline: none;
-  border-color: var(--blue);
-  box-shadow: 0 0 0 1px var(--blue);
+.question-input::placeholder {
+  color: var(--ink-soft);
 }
 
-/* ---------- Small screens: shelf becomes a strip above the chat ---------- */
+.question-input:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+/* ---------- Small screens: shelf becomes a strip above the conversation ---------- */
 
 @media (max-width: 860px) {
   .topbar {
@@ -629,6 +718,10 @@ button.cite:hover {
     flex-direction: column;
     gap: 10px;
     padding: 0 12px 12px;
+  }
+
+  .title-page {
+    padding: 8px 4px 6vh;
   }
 
   .shelf {
@@ -650,30 +743,22 @@ button.cite:hover {
 
   .doc-item {
     flex: none;
-    width: 240px;
+    width: 230px;
+    padding: 8px 10px 6px;
     background: var(--paper);
     border: 1px solid var(--rule);
+    border-radius: 3px;
   }
 
   .shelf-actions {
     flex-direction: row;
     align-items: center;
     padding-top: 0;
-    border-top: none;
   }
 
   .shelf-actions .btn-text {
     align-self: auto;
     margin-left: auto;
-  }
-
-  .sheet-intro {
-    padding: 28px 20px 24px;
-  }
-
-  .messages {
-    gap: 22px;
-    padding-top: 20px;
   }
 }
 
@@ -689,6 +774,6 @@ button.cite:hover {
   .spinner {
     animation: none;
     border-top-color: var(--rule);
-    border-left-color: var(--blue);
+    border-left-color: var(--ink);
   }
 }
