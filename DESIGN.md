@@ -63,14 +63,12 @@ a short explanation, a white drop card with an upload icon, three feature
 cards (Grounded / Multi-document / Private) and the privacy note. On a
 phone it scrolls rather than running under the footer.
 
-**Footer** (two tiers since v2.2.0). Top: brand + tagline, the live
-**AI providers** row (a pill per provider with a green dot when available,
-a slowly pulsing amber dot while it cools down after a rate limit), and
-the links (GitHub, Releases, Report an issue, Privacy — which opens a
-dialog). Below a dashed hairline: the credit "Made with ❤️ by Piyush Garg",
-the stack in mono (FastAPI · FAISS · MiniLM · BM25 · gpt-oss · Nemotron) and a
-version badge linking to the release notes. On a phone the brand, the stack
-and the label are dropped; providers, links and the credit remain.
+**Footer** (one compact row since v2.2.1, so the conversation keeps its
+height). The credit "Made with ❤️ by Piyush Garg"; the live **AI** providers
+(a green dot when available, a slowly pulsing amber dot while one cools down
+after a rate limit); the links (GitHub, Releases, Issues, Privacy — which
+opens a dialog) and the version badge. The app's name lives in the top bar,
+not repeated here. On narrow screens it wraps to two short rows.
 
 **Small comforts** (v2.2.0). A light / dark / system toggle in the top bar
 (remembered in this browser; applied before first paint by `theme.js`).

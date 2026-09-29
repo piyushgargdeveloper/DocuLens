@@ -437,3 +437,8 @@ date, what changed, why, and what (if anything) failed._
     - `/api/status` lists Groq, OpenRouter, NVIDIA, Hugging Face and Groq 20b, all ready, with no key material in the response.
     - Headless Chrome against the live URL: with Groq's daily quota used up, the question was answered by **OpenRouter (Nemotron 3 Super)** through failover, and the answer is labelled so.
     - The footer shows 4 green provider pills; the theme toggle and jump-to-latest work; the phone layout is fine; 0 console errors or CSP violations.
+- **2026-09-29** — v2.2.1: footer and layout fix. The owner said the footer still wasn't right and parts of the UI looked broken. Screenshots at 1366×768, 1024, 820 and 390 showed why:
+  - The two-tier footer was 97–134px tall and squeezed the conversation.
+  - On 768px-tall laptops, the start page's feature cards were cut off at the footer.
+  - The footer is now one compact row (47px on laptops, two short rows on phones): the credit, the live AI provider dots, then GitHub / Releases / Issues / Privacy and the version. The app name is dropped from it because the top bar already shows it.
+  - Short screens (≤820px tall) get a tighter start page, so everything fits above the footer.
