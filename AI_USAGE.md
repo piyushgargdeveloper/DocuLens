@@ -225,3 +225,15 @@ understood and explainable without AI help (the task requires it):
   follow-ups with a question the document can answer (Saturn).
 - It did not re-run the evaluation on an organizer-provided document,
   since none is in the repository; that item stays open.
+
+## Frontend Direction Pass (v1.4.0)
+
+- The user installed an open-source design-direction skill
+  (jangles-byte/atelier, MIT) and asked for the frontend to be improved
+  with it. The AI coding assistant read the skill's files before
+  installing it, then followed its method: audit the existing UI against
+  the skill's anti-generic checklist, write a design philosophy
+  (`DESIGN.md`) before changing code, then render and critique.
+- The critique pass found and fixed layout issues from screenshots, and a
+  real accessibility bug by keyboard-testing: the upload area had never
+  been reachable with the Tab key. Details are in `DECISIONS.md`.

@@ -32,12 +32,14 @@ those passages) so answers stay traceable back to the source text.
 - **Document summary**: one click per document for a short, page-cited
   summary.
 - A page reload keeps your documents and conversation.
-- **Clickable page citations**: page references in an answer become
-  highlighter-yellow tabs; clicking one opens the sources and marks the
-  exact passage it points to.
-- A mobile-responsive reading interface with light and dark themes — no
-  frontend framework, no build step, just static HTML/CSS/JS served by
-  the backend.
+- **Evidence in the margin**: on a wide screen every answer shows its
+  source passages as notes beside it; page references in the answer
+  become highlighter-yellow tabs, and clicking one highlights the exact
+  passage it points to. On a phone the notes fold under the answer.
+- A keyboard-accessible, mobile-responsive reading interface with light
+  and dark themes — no frontend framework, no build step, just static
+  HTML/CSS/JS served by the backend. The design rationale is in
+  [`DESIGN.md`](DESIGN.md).
 - Page-aware text extraction, so every retrieved passage keeps its
   source page number.
 - Answers are grounded: the LLM is instructed to answer only from
@@ -197,9 +199,10 @@ resembling production use.
    Questions then search all of them.
 4. Ask a question in the box at the bottom and press Enter (Shift+Enter
    for a newline).
-5. Read the answer. Click a yellow page tab (e.g. **p. 3**) to jump to
-   the passage it came from, or open **Sources** to see every retrieved
-   passage with its document, page and similarity score.
+5. Read the answer. Its retrieved passages sit in the margin beside it
+   (or behind **Show sources** on a phone), each with its document, page
+   and similarity score. Click a yellow page tab (e.g. **p. 3**) to
+   highlight the passage it came from; click a margin note to expand it.
 6. Ask follow-up questions — the last 3 turns are sent along, so
    references like "it" or "that one" resolve.
 7. Click **Summarize** under a document for a short summary of it.
