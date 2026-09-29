@@ -32,6 +32,10 @@ OVERVIEW_PATTERN = re.compile(
 )
 
 
+class DocumentTooLargeError(ValueError):
+    """The document would produce more chunks than the caller allows."""
+
+
 @dataclass
 class IndexState:
     store: VectorStore
@@ -47,9 +51,13 @@ def ingest(
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
     name: str | None = None,
+    max_chunks: int | None = None,
 ) -> IndexState | None:
     """Run extraction -> chunking -> embedding -> indexing. Returns None if the
     PDF has no extractable text (invalid/empty PDF).
+
+    With `max_chunks`, raises DocumentTooLargeError *before* embedding, so an
+    oversized document never costs the memory or CPU time of being indexed.
 
     `name` (e.g. the uploaded filename) is tagged onto every chunk so answers
     across several documents can say which document a passage came from."""
@@ -60,6 +68,8 @@ def ingest(
     chunks = chunk_pages(pages, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     if not chunks:
         return None
+    if max_chunks is not None and len(chunks) > max_chunks:
+        raise DocumentTooLargeError(f"{len(chunks)} chunks > {max_chunks}")
     if name:
         for chunk in chunks:
             chunk["doc"] = name

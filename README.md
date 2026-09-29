@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.7.0
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.8.0
 
 ## What it does
 
@@ -300,6 +300,26 @@ LLM, so a few things are handled deliberately:
   2 hours of inactivity. A background task enforces that deadline every 5
   minutes even when no one is using the site, and a server restart clears
   everything. The upload screen tells users this.
+- **What leaves the server**: to write an answer, the question and the
+  retrieved passages are sent to the configured LLM provider (Groq by
+  default); the upload screen says so. Fonts are self-hosted, so the page
+  itself makes no requests to other sites.
+- **Response headers**: a strict Content-Security-Policy (everything from
+  `'self'`, no inline scripts or styles, no framing), `nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a restrictive
+  `Permissions-Policy`, and HSTS over HTTPS. The FastAPI API docs
+  (`/docs`, `/redoc`, `/openapi.json`) are disabled.
+- **Rate limits** per client IP: 10 LLM-backed requests a minute and 100 an
+  hour (questions, summaries, suggestions), 10 uploads per 10 minutes —
+  so one script can't exhaust the shared LLM quota or the CPU. Behind Nginx
+  the client IP comes from `X-Real-IP`, trusted only from the loopback
+  proxy.
+- **Uploads**: the file must start like a PDF (`%PDF-`), not just be named
+  `.pdf`; filenames are cut to 120 characters and stripped of control
+  characters; a document over ~360 pages of text is rejected *before*
+  embedding, so one upload can't exhaust memory.
+- **Errors**: unexpected failures return a generic message with a short
+  reference code that matches the server log, never internals.
 - **Resource limits**: uploads are capped at 25MB (never read past the
   limit), questions at 1000 characters, 5 documents per session, 50
   sessions per server, and sessions expire after 2 hours of inactivity.

@@ -29,6 +29,14 @@ For context before reporting an issue, see the "Security notes" section of
   character questions, 5 documents per session, 50 sessions, 2-hour expiry.
 - Document and model text is inserted into the page with `textContent` /
   text nodes only, never as HTML or markdown.
+- Strict Content-Security-Policy and other security headers on every
+  response; HSTS over HTTPS; API docs endpoints disabled; no third-party
+  requests from the page (fonts are self-hosted).
+- Per-client rate limits on LLM-backed endpoints and uploads.
+- Uploads are checked for a real PDF signature, filenames are sanitised, and
+  oversized documents are rejected before embedding.
+- The upload screen discloses that questions and relevant passages are sent
+  to the LLM provider.
 - Dependencies are watched by Dependabot, and CodeQL scans every push.
 
 ## Reporting a vulnerability

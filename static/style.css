@@ -4,6 +4,33 @@
  * answer carries its source passages as notes in the margin.
  */
 
+/* Fonts are served from this site (static/fonts/, SIL Open Font License), not
+   Google Fonts, so a visit sends no request -- and no IP address -- to a third
+   party, and the Content-Security-Policy can allow fonts from 'self' only. */
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/atkinson-hyperlegible-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/static/fonts/atkinson-hyperlegible-700.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/static/fonts/source-serif-4-variable.woff2") format("woff2");
+}
+
 :root {
   --desk: #E3E8EE;
   --paper: #FBFCFD;

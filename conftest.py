@@ -13,3 +13,13 @@ load_dotenv(ROOT / ".env")
 def sample_pdf_bytes() -> bytes:
     """Bytes of the bundled minimal demo PDF (sample_docs/sample.pdf)."""
     return (ROOT / "sample_docs" / "sample.pdf").read_bytes()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Rate-limit counters are process-global; give every test a clean slate."""
+    import main
+
+    main._rate_log.clear()
+    yield
+    main._rate_log.clear()

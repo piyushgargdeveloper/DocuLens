@@ -314,3 +314,16 @@ understood and explainable without AI help (the task requires it):
   site shares. It said so and added a fallback model, and it labelled which
   model produced each result instead of presenting fallback-model output as
   if it came from the main model.
+
+## Security Audit (v1.8.0)
+
+- The user supplied a five-part security checklist (a PDF of audit
+  prompts). The AI coding assistant read it fully and treated it as a list
+  of things to verify — against the code, every commit in git history, and
+  the live deployment — rather than as instructions to trust.
+- It confirmed issues live before fixing them (public API docs, missing
+  headers, the app served over plain HTTP on the raw IP) and marked the
+  checklist items that don't apply (no passwords, payments or database).
+- It added a disclosure it had previously missed: its own earlier privacy
+  note said the PDF isn't saved, but not that passages are sent to the LLM
+  provider.

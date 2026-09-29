@@ -8,8 +8,11 @@ pipeline.ingest()/answer()/summarize() to HTTP and holds per-session state.
 """
 
 import asyncio
+import os
+import re
 import secrets
 import time
+from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,7 +32,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The release version. static/index.html repeats it (asset ?v= query, footer,
 # release link) and tests/test_api.py fails if the two ever disagree.
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.8.0"
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
@@ -38,6 +41,36 @@ MAX_SESSIONS = 50  # oldest-idle session is evicted beyond this, bounding server
 MAX_STORED_TURNS = 10  # conversation turns kept per session (only the last few reach the LLM)
 SESSION_TTL_SECONDS = 2 * 60 * 60  # 2 hours of inactivity
 CLEANUP_INTERVAL_SECONDS = 5 * 60
+# ~360 pages of text at the default chunking. Bounds the memory and embedding
+# time one upload can take: a 25MB text-heavy PDF could otherwise hold
+# gigabytes across sessions on a 2GB server.
+MAX_CHUNKS_PER_DOC = 1500
+MAX_FILENAME_CHARS = 120
+
+# Per-client request limits: (max requests, window in seconds). Every
+# LLM-backed call spends the shared provider quota (on Groq's free tier, a
+# daily token budget), so one script could otherwise take the assistant down
+# for everyone; ingestion is CPU-heavy (embedding).
+RATE_LIMITS = {
+    "llm": [(10, 60), (100, 60 * 60)],  # /api/ask, /api/summary, /api/suggestions
+    "ingest": [(10, 10 * 60)],  # /api/ingest
+}
+
+# Sent with every response. The page loads nothing from other origins (fonts
+# are self-hosted), so the policy can be 'self' throughout; the favicon is an
+# inline SVG data: URL.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; "
+        "img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; "
+        "form-action 'self'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+}
 
 
 async def _sweep_expired_sessions() -> None:
@@ -55,6 +88,11 @@ async def _sweep_expired_sessions() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not os.environ.get("LLM_API_KEY", "").strip():
+        # Not fatal: uploads and retrieval still work, and every LLM-backed
+        # endpoint answers 503 with a clear message. Refusing to start would
+        # also break the credential-free test suite and CI.
+        print("WARNING: LLM_API_KEY is not set -- questions, summaries and suggestions will fail.")
     sweeper = asyncio.create_task(_sweep_expired_sessions())
     try:
         yield
@@ -62,12 +100,21 @@ async def lifespan(app: FastAPI):
         sweeper.cancel()
 
 
-app = FastAPI(title="AI Document Assistant", version=APP_VERSION, lifespan=lifespan)
+# The interactive API docs (/docs, /redoc, /openapi.json) are off: they would
+# publish a map of every endpoint, and nothing here needs them in production.
+app = FastAPI(
+    title="AI Document Assistant",
+    version=APP_VERSION,
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 
 @app.middleware("http")
-async def revalidate_frontend(request: Request, call_next):
-    """Make browsers revalidate the page and its JS/CSS on every load.
+async def response_headers(request: Request, call_next):
+    """Security headers on every response, plus revalidation of the frontend.
 
     Without a Cache-Control header, browsers cache static files heuristically
     and may skip asking the server at all -- after the v1.2.0 deploy a browser
@@ -76,6 +123,9 @@ async def revalidate_frontend(request: Request, call_next):
     costs only a 304.
     """
     response = await call_next(request)
+    response.headers.update(SECURITY_HEADERS)
+    if _is_https(request):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     if not request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-cache"
     return response
@@ -102,6 +152,48 @@ def _prune_sessions() -> None:
     while len(_sessions) > MAX_SESSIONS:
         oldest = min(_sessions, key=lambda sid: _sessions[sid].last_used)
         del _sessions[oldest]
+    # Rate-limit history older than the longest window is no longer needed.
+    longest = max(window for limits in RATE_LIMITS.values() for _, window in limits)
+    for key in [k for k, hits in _rate_log.items() if not hits or now - hits[-1] > longest]:
+        del _rate_log[key]
+
+
+# (client, bucket) -> timestamps of recent allowed requests, oldest first.
+_rate_log: dict[tuple[str, str], deque] = {}
+
+
+def _client_ip(request: Request) -> str:
+    """The caller's address. The app only listens on 127.0.0.1 in production,
+    so a loopback peer is Nginx, which overwrites X-Real-IP with the real
+    client address; the header is ignored from anyone else, so it can't be
+    spoofed to dodge the rate limit."""
+    peer = request.client.host if request.client else "unknown"
+    if peer in ("127.0.0.1", "::1"):
+        return request.headers.get("x-real-ip", peer)
+    return peer
+
+
+def _rate_limited(request: Request, bucket: str) -> JSONResponse | None:
+    """A 429 response if this client is over any of the bucket's limits,
+    otherwise None (and the request is counted)."""
+    now = time.time()
+    hits = _rate_log.setdefault((_client_ip(request), bucket), deque())
+    longest = max(window for _, window in RATE_LIMITS[bucket])
+    while hits and now - hits[0] > longest:
+        hits.popleft()
+    for limit, window in RATE_LIMITS[bucket]:
+        recent = [t for t in hits if now - t <= window]
+        if len(recent) >= limit:
+            retry_after = int(window - (now - recent[0])) + 1
+            response = _error(
+                f"Too many requests. Please wait about {max(1, round(retry_after / 60))} "
+                f"minute(s) and try again.",
+                429,
+            )
+            response.headers["Retry-After"] = str(retry_after)
+            return response
+    hits.append(now)
+    return None
 
 
 def _get_session(request: Request) -> Session | None:
@@ -154,22 +246,43 @@ def _unique_name(session: Session, filename: str) -> str:
     return name
 
 
+def _clean_filename(raw: str | None) -> str:
+    """Basename only, no control characters, at most MAX_FILENAME_CHARS
+    (keeping the extension). Filenames are shown in the UI and label passages
+    in the prompt, so an attacker-chosen name must stay short and inert."""
+    name = re.sub(r"[\x00-\x1f\x7f]", "", Path(raw or "").name).strip()
+    if len(name) > MAX_FILENAME_CHARS:
+        stem, dot, ext = name.rpartition(".")
+        name = (stem[: MAX_FILENAME_CHARS - len(ext) - 2] + "…" + dot + ext) if dot else name[:MAX_FILENAME_CHARS]
+    return name
+
+
+def _server_error(e: Exception, action: str, message: str, status_code: int) -> JSONResponse:
+    """Log the real error with a short reference and return a generic message
+    carrying the same reference, so a user's report can be matched to the log
+    without exposing internals (CodeQL py/stack-trace-exposure)."""
+    reference = secrets.token_hex(4)
+    print(f"[{reference}] Error while {action}: {e!r}")
+    return _error(f"{message} (reference {reference})", status_code)
+
+
 def _llm_error_response(e: Exception, action: str) -> JSONResponse:
-    # Logged server-side only -- never echo exception text back to the
-    # client (see DECISIONS.md: CodeQL py/stack-trace-exposure).
-    print(f"Error while {action}: {e!r}")
     if isinstance(e, LLMConfigError):
-        return _error("The assistant is not configured correctly. Please contact the site administrator.", 503)
+        return _server_error(
+            e, action, "The assistant is not configured correctly. Please contact the site administrator.", 503
+        )
     if isinstance(e, LLMRequestError):
-        return _error("The LLM API request failed. Please try again in a moment.", 502)
-    return _error(f"Something went wrong while {action}. Please try again.", 500)
+        return _server_error(e, action, "The LLM API request failed. Please try again in a moment.", 502)
+    return _server_error(e, action, f"Something went wrong while {action}. Please try again.", 500)
 
 
 @app.post("/api/ingest")
 async def ingest(request: Request, file: UploadFile = File(...)):
     _prune_sessions()
+    if limited := _rate_limited(request, "ingest"):
+        return limited
 
-    filename = Path(file.filename or "").name
+    filename = _clean_filename(file.filename)
     if not filename.lower().endswith(".pdf"):
         return _error("Please upload a PDF file.", 400)
 
@@ -187,15 +300,28 @@ async def ingest(request: Request, file: UploadFile = File(...)):
     await file.close()
     if len(pdf_bytes) > MAX_UPLOAD_BYTES:
         return _error("File is too large. The limit is 25MB.", 413)
+    # The extension is only a claim; a PDF starts with "%PDF-" within its
+    # first 1024 bytes (the spec allows leading junk).
+    if b"%PDF-" not in pdf_bytes[:1024]:
+        return _error("That file isn't a PDF. Please upload a PDF file.", 400)
 
     name = _unique_name(session, filename) if session else filename
     try:
         # Extraction + embedding is CPU-bound; running it in a worker thread
         # keeps the event loop free to serve other users meanwhile.
-        index_state = await run_in_threadpool(pipeline.ingest, pdf_bytes, name=name)
+        index_state = await run_in_threadpool(
+            pipeline.ingest, pdf_bytes, name=name, max_chunks=MAX_CHUNKS_PER_DOC
+        )
+    except pipeline.DocumentTooLargeError:
+        return _error(
+            "This PDF has too much text to process here (roughly 360 pages is the limit). "
+            "Try a shorter document or split it.",
+            413,
+        )
     except Exception as e:
-        print(f"Unexpected error during ingestion: {e!r}")
-        index_state = None
+        # Previously this fell through to the "couldn't extract any text"
+        # message, which misreported server faults as a bad PDF.
+        return _server_error(e, "reading the document", "Something went wrong while reading this PDF.", 500)
 
     if index_state is None:
         return _error(
@@ -250,6 +376,8 @@ async def get_session(request: Request):
 @app.post("/api/ask")
 async def ask(request: Request):
     _prune_sessions()
+    if limited := _rate_limited(request, "llm"):
+        return limited
 
     session = _get_session(request)
     if session is None or not session.docs:
@@ -277,6 +405,8 @@ async def ask(request: Request):
 
 @app.post("/api/summary")
 async def summary(request: Request):
+    if limited := _rate_limited(request, "llm"):
+        return limited
     session = _get_session(request)
     if session is None or not session.docs:
         return _error("No document is loaded. Please upload a PDF first.", 400)
@@ -296,6 +426,8 @@ async def summary(request: Request):
 @app.post("/api/suggestions")
 async def suggestions(request: Request):
     """Starter questions for a document, written by the LLM from a sample of it."""
+    if limited := _rate_limited(request, "llm"):
+        return limited
     session = _get_session(request)
     if session is None or not session.docs:
         return _error("No document is loaded. Please upload a PDF first.", 400)

@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v1.7.0._
+_Current as of v1.8.0._
 
 ## Overview
 
@@ -206,6 +206,22 @@ Two scripts sit beside the app and call the pipeline modules directly:
   labelled question set for a BM25 baseline, MiniLM, BGE-small and a
   BM25 + MiniLM hybrid (reciprocal rank fusion), across three chunk
   settings. Results: `reports/retrieval_eval.md`.
+
+## Security Controls
+
+| Threat | Control |
+|---|---|
+| Quota or CPU exhaustion by one client | Per-IP rate limits (`RATE_LIMITS`): LLM endpoints 10/min and 100/h, uploads 10/10 min; IP from `X-Real-IP` only when the peer is the loopback proxy |
+| Memory exhaustion by a huge document | `MAX_CHUNKS_PER_DOC` (1500 ≈ 360 pages) checked before embedding; 5 docs/session; 50 sessions |
+| Non-PDF uploads | `%PDF-` signature check in the first 1024 bytes |
+| Hostile filenames | Basename only, control characters stripped, 120-character cap |
+| XSS / clickjacking / injection of external resources | CSP `default-src 'self'` with no inline code, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`; all dynamic text via `textContent` |
+| Downgrade to HTTP | HSTS (1 year) over HTTPS; Nginx redirects plain HTTP, including requests to the raw IP |
+| Reconnaissance | `/docs`, `/redoc`, `/openapi.json` disabled; Nginx `server_tokens off` |
+| Leaking internals in errors | Generic message + reference code; details only in the server log |
+| Cross-session access (IDOR) | Document ids are looked up only inside the caller's own session (256-bit cookie) |
+| Prompt injection via PDF text | Passages fenced and declared untrusted (see Generation) |
+| Third-party data flow | Page loads nothing external; only the question + retrieved passages go to the LLM provider, disclosed on the upload screen |
 
 ## Failure Handling
 
