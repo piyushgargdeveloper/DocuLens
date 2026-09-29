@@ -1,12 +1,12 @@
 # AI Usage — AI Document Assistant
 
-Honest, running record of how AI assistance (Claude Code) was used while
+Honest, running record of how an AI coding assistant was used while
 building this project. Updated as work progresses — not written once at
 the end.
 
 ## Planning Phase
 
-- Claude Code was used to draft the initial planning documents
+- The AI coding assistant was used to draft the initial planning documents
   (`PROJECT_SPEC.md`, `ARCHITECTURE.md`, `IMPLEMENTATION_PLAN.md`,
   `DECISIONS.md`, this file) from a set of functional requirements the
   user defined up front (single-document PDF QA, page-aware chunking,
@@ -16,7 +16,7 @@ the end.
   structure, what stack to use — all specified up front) and reviewed
   each planning document before implementation began.
 - Architectural choices (e.g. not using LangChain, model/library
-  selection) were proposed by Claude Code with stated reasoning, for the
+  selection) were proposed by the AI coding assistant with stated reasoning, for the
   user to accept, reject, or change before implementation began.
 
 ## Implementation Phase
@@ -24,7 +24,7 @@ the end.
 - All source files (`pdf_loader.py`, `chunker.py`, `embedder.py`,
   `vector_store.py`, `llm_client.py`, `pipeline.py`, `evaluate.py`, and
   originally a Streamlit `app.py`, later replaced by `main.py` + `static/`
-  — see "UI/Architecture Migration" below) were drafted by Claude Code
+  — see "UI/Architecture Migration" below) were drafted by the AI coding assistant
   directly from the approved
   `PROJECT_SPEC.md`/`ARCHITECTURE.md`/`IMPLEMENTATION_PLAN.md`, then
   actually run and tested (see `DECISIONS.md`'s development log) rather
@@ -38,14 +38,14 @@ the end.
   only on manual UI clicking, so the comparison is reproducible.
 - The user supplied real API credentials (OpenAI, then Groq after the
   OpenAI key turned out to have no billing credits) directly in chat for
-  Claude Code to place into a local, gitignored `.env` file. Keys were
+  the AI coding assistant to place into a local, gitignored `.env` file. Keys were
   never printed back, hardcoded into source, or committed.
 - No AI-suggested approach has been rejected; the OpenAI→Groq switch was
   caused by an account billing issue, not a design change.
 
 ## Testing Phase
 
-- Claude Code selected and downloaded a real public PDF (a well-known
+- The AI coding assistant selected and downloaded a real public PDF (a well-known
   arXiv paper) to validate the pipeline on realistic document structure
   beyond the bundled minimal demo PDF, read its actual extracted content
   before writing test questions (rather than guessing), and ran a real
@@ -66,7 +66,7 @@ the end.
 ## Generalization Pass
 
 - The project was later converted into a standalone, general-purpose
-  portfolio project. Claude Code performed a repository-wide audit for
+  portfolio project. The AI coding assistant performed a repository-wide audit for
   organization- and context-specific references and removed or reworded
   them across the UI, README, planning docs, and code comments, while
   explicitly preserving every technically meaningful decision and finding
@@ -79,7 +79,7 @@ the end.
 
 ## Review and Hardening Pass
 
-- Claude Code ran a project-wide review (architecture, RAG correctness,
+- The AI coding assistant ran a project-wide review (architecture, RAG correctness,
   security, PDF handling, state management, UI/UX, deployment,
   dependencies, documentation) and fixed the issues it found. The full
   list, including what was actually broken and how each fix was
@@ -94,7 +94,7 @@ the end.
 
 ## Autonomous Maintenance Pass
 
-- Claude Code was authorized to act as an autonomous maintainer: inspect
+- The AI coding assistant was authorized to act as an autonomous maintainer: inspect
   the repository, fix genuine issues on its own judgment, and document
   what changed, without asking permission for each individual fix.
 - It re-read every source file directly rather than relying on earlier
@@ -115,7 +115,7 @@ the end.
 
 ## UI/Architecture Migration
 
-- Claude Code was authorized to independently choose and implement a
+- The AI coding assistant was authorized to independently choose and implement a
   replacement for the Streamlit UI, whose mobile experience was the
   motivating problem. It evaluated staying on Streamlit, a full SPA
   framework, and a minimal FastAPI + static-frontend approach, and chose
@@ -143,7 +143,7 @@ the end.
 
 ## Live Deployment
 
-- Claude Code evaluated multiple hosting platforms against real,
+- The AI coding assistant evaluated multiple hosting platforms against real,
   researched or empirically-tested constraints — not assumptions. Render
   was tested by actually running the built image with `--memory=512m`
   and measuring 99.4% usage at idle before rejecting it; Fly.io/Railway
@@ -204,7 +204,7 @@ understood and explainable without AI help (the task requires it):
 
 ## Bug-Fix and Bonus-Feature Pass (2026-09-29)
 
-- The user asked Claude Code to fix any errors, close gaps against the task
+- The user asked the AI coding assistant to fix any errors, close gaps against the task
   brief, and add improvements of its choice. It compared the repository to
   the brief first, then read every source file for defects even though all
   tests passed.
