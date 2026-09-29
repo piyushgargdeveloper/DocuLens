@@ -1608,71 +1608,37 @@ body.busy .follow-up {
 }
 
 /* ---------- Footer ----------
-   Two tiers: brand, live AI-provider status and links on top; the credit,
-   the stack and the version underneath. */
+   One compact row (the top bar already names the app): the credit, live
+   AI-provider status, then the links and the version. It wraps to two short
+   rows on narrow screens, never more. */
 
 .site-footer {
   flex: none;
   width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 20px;
+  padding: 9px max(24px, calc((100% - 1440px) / 2 + 24px));
   border-top: 1px solid var(--border);
   background: var(--surface);
-  padding: 0 max(24px, calc((100% - 1440px) / 2 + 24px));
   font-size: var(--text-sm);
   color: var(--text-soft);
-}
-
-.footer-main {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 10px 24px;
-  padding: 12px 0 10px;
-}
-
-.footer-bottom {
-  display: flex;
-  align-items: center;
-  gap: 8px 16px;
-  padding: 8px 0 10px;
-  border-top: 1px dashed var(--border);
-  font-size: var(--text-xs);
-  color: var(--text-faint);
-}
-
-.footer-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.footer-brand strong {
-  display: block;
-  color: var(--text);
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-.footer-tagline {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--text-faint);
-  line-height: 1.3;
 }
 
 .footer-providers {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .footer-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: var(--text-faint);
-  white-space: nowrap;
 }
 
 .provider-list {
@@ -1681,17 +1647,13 @@ body.busy .follow-up {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px 12px;
 }
 
 .provider {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px 3px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
   font-size: var(--text-xs);
   font-weight: 550;
   color: var(--text-soft);
@@ -1716,17 +1678,17 @@ body.busy .follow-up {
 .footer-links {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 2px 4px;
+  align-items: center;
+  gap: 2px;
 }
 
-.footer-links a,
+.footer-links a:not(.version-badge),
 .footer-link-button {
   font: inherit;
   font-weight: 500;
   color: var(--text-soft);
   text-decoration: none;
-  padding: 5px 9px;
+  padding: 4px 8px;
   border: none;
   border-radius: 7px;
   background: none;
@@ -1734,7 +1696,7 @@ body.busy .follow-up {
   transition: color 0.15s, background-color 0.15s;
 }
 
-.footer-links a:hover,
+.footer-links a:not(.version-badge):hover,
 .footer-link-button:hover {
   color: var(--text);
   background: var(--surface-2);
@@ -1742,19 +1704,11 @@ body.busy .follow-up {
 
 .footer-credit {
   white-space: nowrap;
-  color: var(--text-soft);
 }
 
 .footer-credit strong {
   color: var(--text);
   font-weight: 600;
-}
-
-.footer-stack {
-  margin-left: auto;
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  letter-spacing: -0.01em;
 }
 
 .heart {
@@ -1771,6 +1725,7 @@ body.busy .follow-up {
 }
 
 .version-badge {
+  margin-left: 6px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1845,16 +1800,47 @@ body.busy .follow-up {
   justify-content: flex-end;
 }
 
-/* ---------- Medium screens: providers move under the brand ---------- */
+/* ---------- Short screens (e.g. 1366x768 laptops): a tighter start page ---------- */
 
-@media (max-width: 1180px) {
-  .footer-main {
-    grid-template-columns: 1fr auto;
+@media (max-height: 820px) and (min-width: 861px) {
+  .title-page {
+    padding: 4px 0 2vh;
   }
 
-  .footer-providers {
-    grid-column: 1 / -1;
-    grid-row: 2;
+  .eyebrow-badge {
+    margin-bottom: 12px;
+  }
+
+  .intro-title {
+    font-size: clamp(1.9rem, 1.2rem + 2.2vw, 2.6rem);
+    margin-bottom: 10px;
+  }
+
+  .intro-body {
+    font-size: var(--text-md);
+    margin-bottom: 18px;
+  }
+
+  .dropzone {
+    padding: 18px 24px 16px;
+  }
+
+  .dropzone-icon {
+    width: 38px;
+    height: 38px;
+    margin-bottom: 2px;
+  }
+
+  .features {
+    margin-top: 14px;
+  }
+
+  .features li {
+    padding: 9px 12px;
+  }
+
+  .privacy-note {
+    margin-top: 10px;
   }
 }
 
@@ -1973,25 +1959,14 @@ body.busy .follow-up {
   }
 
   .site-footer {
-    padding: 0 14px;
+    padding: 7px 14px;
+    gap: 4px 12px;
     font-size: var(--text-xs);
   }
 
-  /* The top bar already names the app on a phone. */
-  .footer-brand,
-  .footer-stack,
-  .footer-label {
-    display: none;
-  }
-
-  .footer-main {
-    grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 8px 0 6px;
-  }
-
   .footer-providers {
-    grid-row: auto;
+    order: 3;
+    width: 100%;
     overflow-x: auto;
   }
 
@@ -1999,19 +1974,9 @@ body.busy .follow-up {
     flex-wrap: nowrap;
   }
 
-  .footer-links {
-    justify-content: flex-start;
-    margin-left: -6px;
-  }
-
-  .footer-links a,
+  .footer-links a:not(.version-badge),
   .footer-link-button {
-    padding: 3px 6px;
-  }
-
-  .footer-bottom {
-    justify-content: space-between;
-    padding: 6px 0 8px;
+    padding: 3px 5px;
   }
 
   .answered-by {
