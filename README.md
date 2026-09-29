@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.8.0
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.0.0
 
 ## What it does
 
@@ -22,6 +22,29 @@ document, on the other hand, will confidently answer with information
 that isn't actually in the source (hallucination). This project combines
 retrieval (find the relevant passages) with generation (answer from only
 those passages) so answers stay traceable back to the source text.
+
+## What's new in v2
+
+- **Answers stream in** as the model writes them (server-sent events), with
+  a **Stop** button (or `Esc`); a stopped answer is kept on screen but not
+  used as context for follow-ups.
+- **Hybrid retrieval in production** — BM25 keyword scoring fused with
+  embedding similarity (reciprocal rank fusion), the retriever that
+  measured best in [`retrieval_eval.py`](#retrieval-evaluation-measured):
+  Hit@4 0.77 → **0.82**, MRR 0.56 → **0.70** on the labelled set. With it,
+  small-chunk answer quality recovered from 1 of 5 to 4 of 5 in the
+  answer-level comparison.
+- **A new composer**: attach, auto-growing question box, send ⇄ stop,
+  keyboard hints, and a line saying which documents will be searched.
+- **Choose what to search**: tick or untick documents in the list.
+- **Copy** any answer with its sources; **export** the whole conversation
+  as Markdown; **drop a PDF anywhere**; `/` jumps to the question box.
+- **Load control**: at most 4 LLM calls and 2 ingestions run at once;
+  anything beyond waits briefly, then gets a clear "busy" reply.
+- **Tighter security**: cross-site request blocking (Origin /
+  `Sec-Fetch-Site`), a `__Host-` session cookie over HTTPS, a 16KB cap on
+  JSON bodies, `Cross-Origin-Resource-Policy`, and a dependency
+  vulnerability audit (`pip-audit`) in CI that blocks merging.
 
 ## Key features
 
@@ -116,6 +139,20 @@ Full design rationale is in `PROJECT_SPEC.md`, `ARCHITECTURE.md`, and
 `IMPLEMENTATION_PLAN.md`. Every real engineering decision, failure, and
 test result encountered while building this is logged chronologically in
 `DECISIONS.md` — nothing there is fabricated.
+
+### HTTP API
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/ingest` | Upload a PDF (multipart) into the session |
+| `POST /api/ask/stream` | Ask; answer as server-sent events: `sources`, `token`…, `done` / `error` |
+| `POST /api/ask` | Same, as one JSON response |
+| `POST /api/summary` | Summary of one document |
+| `POST /api/suggestions` | Starter questions for one document |
+| `POST /api/remove` | Remove one document, or everything |
+| `GET /api/session` | Documents and conversation, for restoring after a reload |
+
+`/api/ask*` accept an optional `doc_ids` list to search only some documents.
 
 ## Technology stack
 
@@ -546,6 +583,8 @@ without a shared session store.
 
 ## Possible future improvements
 
+- **Streaming ingestion progress** — report pages read and chunks
+  embedded while a large PDF is indexed.
 - **Query rewriting** — have the LLM rewrite a follow-up into a
   standalone question before retrieval, instead of concatenating it with
   the previous one.
@@ -555,7 +594,7 @@ without a shared session store.
   instead of a fixed character window, so facts aren't cut at a chunk
   boundary.
 - **Reranking** — a lightweight cross-encoder reranking step over the
-  initial retrieval results, for higher-precision passage selection on
-  larger documents.
+  hybrid results, for higher-precision passage selection on larger
+  documents (would need re-measuring against the 2GB memory budget).
 - **Shared session store** — swap the in-memory session dict for Redis
   (or similar) if this ever needs to run behind multiple replicas.

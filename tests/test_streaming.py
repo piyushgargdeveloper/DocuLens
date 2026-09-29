@@ -1,0 +1,128 @@
+"""v2 API behaviour: streamed answers, document scope, load control."""
+
+import asyncio
+import json
+
+import pytest
+from fastapi.testclient import TestClient
+
+import main
+
+
+@pytest.fixture
+def client():
+    return TestClient(main.app)
+
+
+@pytest.fixture
+def fake_stream(monkeypatch):
+    """Replace the streaming LLM call; records the passages it was given."""
+    import llm_client
+
+    seen = {}
+
+    def fake_ask_stream(question, passages, timeout=30, history=None):
+        seen["passages"], seen["history"] = passages, history
+        yield from ["Jupiter ", "is the ", "largest planet."]
+
+    monkeypatch.setattr(llm_client, "ask_stream", fake_ask_stream)
+    return seen
+
+
+def _upload(client, data, name="a.pdf"):
+    return client.post("/api/ingest", files={"file": (name, data, "application/pdf")}).json()
+
+
+def _events(response):
+    events = []
+    for block in response.text.strip().split("\n\n"):
+        lines = dict(line.split(": ", 1) for line in block.splitlines())
+        events.append((lines["event"], json.loads(lines["data"])))
+    return events
+
+
+def test_stream_sends_sources_then_tokens_then_done(client, sample_pdf_bytes, fake_stream):
+    _upload(client, sample_pdf_bytes)
+    response = client.post("/api/ask/stream", json={"question": "What is Jupiter known for?"})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert response.headers["x-accel-buffering"] == "no"
+    events = _events(response)
+    assert events[0][0] == "sources" and events[0][1]
+    assert "".join(e[1]["text"] for e in events if e[0] == "token") == "Jupiter is the largest planet."
+    assert events[-1][0] == "done"
+    history = client.get("/api/session").json()["history"]
+    assert history[-1]["answer"] == "Jupiter is the largest planet."
+
+
+def test_stream_errors_before_the_first_token_are_proper_http_errors(client, sample_pdf_bytes, monkeypatch):
+    import llm_client
+
+    def failing(*args, **kwargs):
+        raise llm_client.LLMConfigError("no key")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(llm_client, "ask_stream", failing)
+    _upload(client, sample_pdf_bytes)
+    response = client.post("/api/ask/stream", json={"question": "anything?"})
+    assert response.status_code == 503
+    assert "reference" in response.json()["error"]
+
+
+def test_a_failure_mid_stream_is_reported_and_not_saved(client, sample_pdf_bytes, monkeypatch):
+    import llm_client
+
+    def breaks(*args, **kwargs):
+        yield "Partial "
+        raise llm_client.LLMRequestError("connection dropped")
+
+    monkeypatch.setattr(llm_client, "ask_stream", breaks)
+    _upload(client, sample_pdf_bytes)
+    events = _events(client.post("/api/ask/stream", json={"question": "anything?"}))
+    assert events[-1][0] == "error" and "reference" in events[-1][1]["error"]
+    assert client.get("/api/session").json()["history"] == []
+
+
+def test_doc_ids_limit_which_documents_are_searched(client, sample_pdf_bytes, fake_stream):
+    a = _upload(client, sample_pdf_bytes, "a.pdf")
+    _upload(client, sample_pdf_bytes, "b.pdf")
+    client.post("/api/ask/stream", json={"question": "What is Jupiter known for?", "doc_ids": [a["id"]]})
+    assert {p["doc"] for p in fake_stream["passages"]} == {"a.pdf"}
+
+    bad = client.post("/api/ask/stream", json={"question": "x?", "doc_ids": ["not-mine"]})
+    assert bad.status_code == 400
+
+
+def test_busy_server_answers_503_instead_of_queueing_forever(client, sample_pdf_bytes, fake_stream, monkeypatch):
+    _upload(client, sample_pdf_bytes)
+    monkeypatch.setattr(main, "QUEUE_WAIT_SECONDS", 0.05)
+    monkeypatch.setattr(main, "_llm_slots", asyncio.Semaphore(0))  # every slot taken
+    response = client.post("/api/ask/stream", json={"question": "anything?"})
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "10"
+
+
+# --- Request guard (CSRF, size) and cookie ----------------------------------
+
+
+def test_cross_site_posts_are_refused(client, sample_pdf_bytes):
+    _upload(client, sample_pdf_bytes)
+    evil = client.post("/api/remove", json={}, headers={"Origin": "https://evil.example"})
+    assert evil.status_code == 403
+    fetch_meta = client.post("/api/remove", json={}, headers={"Sec-Fetch-Site": "cross-site"})
+    assert fetch_meta.status_code == 403
+    same = client.post("/api/remove", json={}, headers={"Origin": "http://testserver"})
+    assert same.status_code == 200
+
+
+def test_oversized_json_bodies_are_refused(client):
+    response = client.post("/api/ask", content=b'{"question": "' + b"x" * 20000 + b'"}', headers={"Content-Type": "application/json"})
+    assert response.status_code == 413
+
+
+def test_https_sessions_use_a_host_prefixed_cookie(sample_pdf_bytes):
+    secure = TestClient(main.app, base_url="https://testserver")
+    response = _upload(secure, sample_pdf_bytes)
+    assert "__Host-session" in secure.cookies
+    assert "session_id" not in secure.cookies
+    assert [d["id"] for d in secure.get("/api/session").json()["documents"]] == [response["id"]]

@@ -5,10 +5,10 @@ existed) and is updated as real decisions, failures, and changes happen
 during implementation and testing. Nothing below is fabricated — entries
 are dated and note what actually happened.
 
-> **STATUS (2026-09-29, v1.8.0): feature-complete for the task brief and
+> **STATUS (2026-09-29, v2.0.0): feature-complete for the task brief and
 > deployed.** All core requirements plus the three optional enhancements
 > (multiple documents, follow-up questions, document summaries) are built,
-> covered by 90 automated tests, and verified in a real browser against
+> covered by 103 automated tests, and verified in a real browser against
 > the live deployment at https://ai-doc-assistant.duckdns.org. The
 > application accepts any PDF supplied at runtime — no document-specific
 > content, questions, page numbers or answers are hardcoded in the
@@ -352,3 +352,36 @@ date, what changed, why, and what (if anything) failed._
     10. With no `LLM_API_KEY`, the app now logs a startup warning. It deliberately doesn't refuse to start, because uploads and retrieval still work and the credential-free test suite and CI rely on it.
   - **Deliberately not done:** enabling `ufw` on the instance. The AWS security group is already the firewall (only 22 restricted, 80 and 443 open), and a host firewall misstep can lock out SSH. The rate limits are in-memory, like the sessions, so they reset on restart and are per process; that matches the single-instance deployment.
   - 16 new tests in `tests/test_security.py` (83 run without an API key, plus 7 LLM tests).
+- **2026-09-29** — **v2.0.0.** The user asked for a major version rather than another shallow update: a better bottom bar and UX, smoother backend, tighter security, new architecture where it earns its place.
+  - **Architecture:**
+    1. **Streamed answers.** `POST /api/ask/stream` sends server-sent events: `sources`, then `token` pieces, then `done`/`error`. Two design choices matter here. First, the sources and the first piece are fetched *before* the response opens, so a missing key, a rate limit or a provider error is still a proper HTTP status (503/502) rather than a stream that breaks in the middle. Second, the turn is saved to the history only when the stream completes, so a stopped answer is never used as context. Measured locally: 567 token events arrived at 120 distinct times over 1.2s, so the stream is genuinely incremental. Groq writes about 460 tokens/s, and the first token arrives at about 2.4s (retrieval plus model reasoning).
+    2. **Hybrid retrieval in production.** `retriever.py` now holds BM25, a union-statistics BM25 that spans documents, and reciprocal rank fusion, and both `pipeline.retrieve()` and `retrieval_eval.py` import it. Verified that the refactor left `reports/retrieval_eval.json` byte-identical, and that the app's own `retrieve()` scores **Hit@4 0.82, MRR 0.70** on the 39-question set, exactly the measured "Hybrid" row (MiniLM alone scores 0.77 / 0.56). The old guard test ("single-document retrieval equals plain vector search") was replaced by one pinning equality with the measured hybrid. Answer-level re-run (`reports/answer_eval_v2.0.md`):
+       - Config A (300/50/3) now answers **4 of 5** answerable questions, up from 1 fully and 1 partially in v1.7.0. On the BLEU question it reports both 41.0 and 41.8, each with its page: the paper's real inconsistency.
+       - Config B still gets 5/5.
+       - The USD-cost question is refused under both.
+       - Caveat: 6 of the 12 answers came from the fallback 20b model, because the 120b daily quota ran out mid-run.
+    3. **Load control.** Semaphores cap concurrent LLM calls at 4 and ingestions at 2. Anything beyond waits up to 20s, then gets 503 with `Retry-After`, instead of piling up threads on a 2-CPU / 2GB box.
+    4. **Document scope.** `doc_ids` on ask requests, restricted to the caller's own session.
+  - **Security:**
+    - A middleware refuses API POSTs whose `Origin` isn't this host or whose `Sec-Fetch-Site` is `cross-site`. This is CSRF defence in depth on top of SameSite=Lax. Requests with no Origin are allowed, because a browser page can't send a POST without one.
+    - The session cookie is `__Host-session` over HTTPS. Browsers enforce Secure, Path=/ and no Domain for that prefix. Local HTTP runs keep `session_id`, because the prefix requires HTTPS.
+    - JSON bodies are capped at 16KB, checked on `Content-Length` and on the body actually read.
+    - `Cross-Origin-Resource-Policy: same-origin` is now sent on every response.
+    - CI runs `pip-audit` on the installed environment and fails on any known advisory. It found none, locally and in CI.
+  - **UI/UX:**
+    - A new composer: one ruled box with attach, an auto-growing question box (up to about 6 lines) and send, which becomes Stop while streaming (`Esc` also stops). Beneath it, a scope line ("Searching 1 of 2 documents") plus keyboard hints, which are hidden on phones.
+    - A blinking caret while streaming; the view stays anchored at the question.
+    - A tick box on each document to include or exclude it.
+    - Copy (answer plus sources) and Export conversation (Markdown, generated client-side).
+    - Drop a PDF anywhere on the page, and `/` to focus the composer.
+    - On phones the shelf's "Add another PDF" is hidden in favour of the composer's attach button.
+  - **Bug caught in testing: mojibake.** The first streamed answers showed "Selfâ€‘attention" and their page citations never became tabs. Providers send `text/event-stream` without a charset, and `requests` then decodes it as ISO-8859-1, which corrupted multi-byte characters: the non-breaking hyphen, and the narrow no-break space inside "Page 6". Fixed by setting UTF-8 explicitly. A regression test builds a real `requests.Response` from UTF-8 bytes.
+  - **Verified in a headless browser (local):**
+    - Stop is visible while streaming and hidden after; the answer shows follow-ups and Copy and 4 margin notes.
+    - `Esc` stopped an answer, and the history did not grow (0).
+    - A second PDF dropped onto the conversation was added. Unticking the first document made the next answer cite only the second.
+    - Export downloaded `conversation-2026-09-29.md` containing the questions and sources, and `/` focused the composer.
+    - At 375px nothing overflows horizontally.
+    - After the fix: no mojibake, 3 citation tabs, and the highlight works.
+    - 0 CSP violations.
+  - Tests: 103 pass, including the 7 that call the LLM. There are 20 new tests covering streaming (event order, errors before and during the stream, history not saved on failure), scope, busy 503, CSRF, JSON cap, `__Host-` cookie, UTF-8 decoding, stream fallback and empty-stream retry.

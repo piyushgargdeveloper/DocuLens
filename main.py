@@ -8,6 +8,7 @@ pipeline.ingest()/answer()/summarize() to HTTP and holds per-session state.
 """
 
 import asyncio
+import json
 import os
 import re
 import secrets
@@ -16,11 +17,12 @@ from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Request, UploadFile
-from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.concurrency import iterate_in_threadpool, run_in_threadpool
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import pipeline
@@ -32,7 +34,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The release version. static/index.html repeats it (asset ?v= query, footer,
 # release link) and tests/test_api.py fails if the two ever disagree.
-APP_VERSION = "1.8.0"
+APP_VERSION = "2.0.0"
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
@@ -70,7 +72,21 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
     "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
 }
+
+# JSON request bodies are a question and a few ids; anything bigger is abuse.
+MAX_JSON_BYTES = 16 * 1024
+
+# How many LLM calls and ingestions may run at once. The server has 2 CPUs and
+# 2GB of RAM, and the LLM provider has per-minute limits: beyond these, extra
+# requests wait briefly and then get a clear "busy" answer instead of piling up
+# threads and memory until everything slows down together.
+LLM_CONCURRENCY = 4
+INGEST_CONCURRENCY = 2
+QUEUE_WAIT_SECONDS = 20
+_llm_slots = asyncio.Semaphore(LLM_CONCURRENCY)
+_ingest_slots = asyncio.Semaphore(INGEST_CONCURRENCY)
 
 
 async def _sweep_expired_sessions() -> None:
@@ -110,6 +126,27 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None,
 )
+
+
+@app.middleware("http")
+async def api_request_guard(request: Request, call_next):
+    """Reject cross-site and oversized API requests before any handler runs.
+
+    CSRF: the session cookie is already SameSite=Lax, which stops browsers
+    sending it on cross-site POSTs; this is the second layer. A browser always
+    sends Origin on a POST fetch and Sec-Fetch-Site on modern engines, so a
+    request that another site triggers is refused outright. Requests with no
+    Origin at all (curl, scripts, the test client) aren't from a browser page
+    and can't carry a victim's cookie, so they pass.
+    """
+    if request.url.path.startswith("/api/") and request.method not in ("GET", "HEAD", "OPTIONS"):
+        if request.headers.get("sec-fetch-site") == "cross-site" or not _same_origin(request):
+            return _error("Cross-site requests are not allowed.", 403)
+        if request.url.path != "/api/ingest":
+            length = request.headers.get("content-length")
+            if length and length.isdigit() and int(length) > MAX_JSON_BYTES:
+                return _error("Request is too large.", 413)
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -196,11 +233,40 @@ def _rate_limited(request: Request, bucket: str) -> JSONResponse | None:
     return None
 
 
+def _cookie_name(request: Request) -> str:
+    """Over HTTPS the session cookie uses the __Host- prefix: browsers then
+    only accept it if it is Secure, has Path=/ and no Domain, so no subdomain
+    or plain-HTTP response can set or overwrite it. (Plain-HTTP local runs
+    can't use the prefix.)"""
+    return "__Host-session" if _is_https(request) else "session_id"
+
+
 def _get_session(request: Request) -> Session | None:
-    session = _sessions.get(request.cookies.get("session_id", ""))
+    session = _sessions.get(request.cookies.get(_cookie_name(request), ""))
     if session is not None:
         session.last_used = time.time()
     return session
+
+
+def _same_origin(request: Request) -> bool:
+    origin = request.headers.get("origin")
+    if not origin:
+        return True
+    return urlsplit(origin).netloc == request.headers.get("host", "")
+
+
+async def _take_slot(slots: asyncio.Semaphore) -> bool:
+    try:
+        await asyncio.wait_for(slots.acquire(), timeout=QUEUE_WAIT_SECONDS)
+        return True
+    except asyncio.TimeoutError:
+        return False
+
+
+def _busy() -> JSONResponse:
+    response = _error("The assistant is busy right now. Please try again in a few seconds.", 503)
+    response.headers["Retry-After"] = "10"
+    return response
 
 
 def _is_https(request: Request) -> bool:
@@ -221,12 +287,48 @@ def _error(message: str, status_code: int) -> JSONResponse:
 
 
 async def _json_body(request: Request) -> dict:
-    """Parsed JSON object body, or {} for a missing/invalid/non-object body."""
+    """Parsed JSON object body, or {} for a missing/invalid/non-object/oversized
+    body (the size check also covers bodies sent without Content-Length)."""
+    raw = await request.body()
+    if len(raw) > MAX_JSON_BYTES:
+        return {}
     try:
-        body = await request.json()
+        body = json.loads(raw)
     except ValueError:
         return {}
     return body if isinstance(body, dict) else {}
+
+
+async def _question_request(request: Request) -> tuple[Session, str, list] | JSONResponse:
+    """Validate an ask request: a session with documents, a question, and an
+    optional `doc_ids` list choosing which of the session's documents to search."""
+    session = _get_session(request)
+    if session is None or not session.docs:
+        return _error("No document is loaded. Please upload a PDF first.", 400)
+
+    body = await _json_body(request)
+    question = body.get("question")
+    question = question.strip() if isinstance(question, str) else ""
+    if not question:
+        return _error("Please enter a question.", 400)
+    if len(question) > MAX_QUESTION_CHARS:
+        return _error(f"Question is too long (max {MAX_QUESTION_CHARS} characters).", 400)
+
+    doc_ids = body.get("doc_ids")
+    if doc_ids is None:
+        states = list(session.docs.values())
+    else:
+        if not isinstance(doc_ids, list):
+            return _error("doc_ids must be a list.", 400)
+        # Only ids from this session count: another session's ids simply don't match.
+        states = [session.docs[d] for d in doc_ids if isinstance(d, str) and d in session.docs]
+        if not states:
+            return _error("Choose at least one of your documents to search.", 400)
+    return session, question, states
+
+
+def _sse(event: str, data) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
 def _documents(session: Session) -> list[dict]:
@@ -306,6 +408,8 @@ async def ingest(request: Request, file: UploadFile = File(...)):
         return _error("That file isn't a PDF. Please upload a PDF file.", 400)
 
     name = _unique_name(session, filename) if session else filename
+    if not await _take_slot(_ingest_slots):
+        return _busy()
     try:
         # Extraction + embedding is CPU-bound; running it in a worker thread
         # keeps the event loop free to serve other users meanwhile.
@@ -322,6 +426,8 @@ async def ingest(request: Request, file: UploadFile = File(...)):
         # Previously this fell through to the "couldn't extract any text"
         # message, which misreported server faults as a bad PDF.
         return _server_error(e, "reading the document", "Something went wrong while reading this PDF.", 500)
+    finally:
+        _ingest_slots.release()
 
     if index_state is None:
         return _error(
@@ -354,7 +460,7 @@ async def ingest(request: Request, file: UploadFile = File(...)):
     )
     if is_new_session:
         response.set_cookie(
-            "session_id",
+            _cookie_name(request),
             session_id,
             httponly=True,
             samesite="lax",
@@ -375,32 +481,92 @@ async def get_session(request: Request):
 
 @app.post("/api/ask")
 async def ask(request: Request):
+    """Answer as one JSON response (the UI uses /api/ask/stream)."""
     _prune_sessions()
     if limited := _rate_limited(request, "llm"):
         return limited
+    checked = await _question_request(request)
+    if isinstance(checked, JSONResponse):
+        return checked
+    session, question, states = checked
 
-    session = _get_session(request)
-    if session is None or not session.docs:
-        return _error("No document is loaded. Please upload a PDF first.", 400)
-
-    body = await _json_body(request)
-    question = body.get("question")
-    question = question.strip() if isinstance(question, str) else ""
-    if not question:
-        return _error("Please enter a question.", 400)
-    if len(question) > MAX_QUESTION_CHARS:
-        return _error(f"Question is too long (max {MAX_QUESTION_CHARS} characters).", 400)
-
+    if not await _take_slot(_llm_slots):
+        return _busy()
     try:
-        result = await run_in_threadpool(
-            pipeline.answer, question, list(session.docs.values()), history=list(session.history)
-        )
+        result = await run_in_threadpool(pipeline.answer, question, states, history=list(session.history))
     except Exception as e:
         return _llm_error_response(e, "answering that question")
+    finally:
+        _llm_slots.release()
 
     session.history.append({"question": question, "answer": result["answer"]})
     del session.history[:-MAX_STORED_TURNS]
     return {"answer": result["answer"], "sources": result["sources"]}
+
+
+@app.post("/api/ask/stream")
+async def ask_stream(request: Request):
+    """Answer as server-sent events: `sources` first, then `token` events as
+    the model writes, then `done` (or `error`).
+
+    Retrieval and the first piece of the answer are fetched *before* the
+    response starts, so a missing API key, a rate limit or a provider failure
+    still produces a proper HTTP status and message instead of a stream that
+    breaks halfway. If the client disconnects (the Stop button), the turn is
+    not saved to the conversation history.
+    """
+    _prune_sessions()
+    if limited := _rate_limited(request, "llm"):
+        return limited
+    checked = await _question_request(request)
+    if isinstance(checked, JSONResponse):
+        return checked
+    session, question, states = checked
+
+    if not await _take_slot(_llm_slots):
+        return _busy()
+    try:
+        sources, pieces = await run_in_threadpool(
+            pipeline.answer_stream, question, states, history=list(session.history)
+        )
+        first = await run_in_threadpool(next, pieces, "")
+    except Exception as e:
+        _llm_slots.release()
+        return _llm_error_response(e, "answering that question")
+
+    async def events():
+        parts = [first] if first else []
+        completed = False
+        try:
+            yield _sse("sources", sources)
+            if first:
+                yield _sse("token", {"text": first})
+            async for piece in iterate_in_threadpool(pieces):
+                parts.append(piece)
+                yield _sse("token", {"text": piece})
+            completed = True
+            answer = "".join(parts)
+            session.history.append({"question": question, "answer": answer})
+            del session.history[:-MAX_STORED_TURNS]
+            yield _sse("done", {})
+        except Exception as e:
+            reference = secrets.token_hex(4)
+            print(f"[{reference}] Error while streaming an answer: {e!r}")
+            yield _sse("error", {"error": f"The answer was interrupted. Please try again. (reference {reference})"})
+        finally:
+            if not completed:
+                try:
+                    pieces.close()  # stop reading from the provider
+                except ValueError:
+                    pass  # still running in its worker thread; it ends on its own
+            _llm_slots.release()
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        # X-Accel-Buffering stops Nginx from holding the stream back until it ends.
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/summary")
@@ -416,10 +582,14 @@ async def summary(request: Request):
     if index_state is None:
         return _error("That document is not loaded.", 404)
 
+    if not await _take_slot(_llm_slots):
+        return _busy()
     try:
         result = await run_in_threadpool(pipeline.summarize, index_state)
     except Exception as e:
         return _llm_error_response(e, "summarizing the document")
+    finally:
+        _llm_slots.release()
     return {"filename": index_state.name, "summary": result["summary"], "sources": result["sources"]}
 
 
@@ -437,17 +607,21 @@ async def suggestions(request: Request):
     if index_state is None:
         return _error("That document is not loaded.", 404)
 
+    if not await _take_slot(_llm_slots):
+        return _busy()
     try:
         questions = await run_in_threadpool(pipeline.suggest_questions, index_state)
     except Exception as e:
         return _llm_error_response(e, "suggesting questions")
+    finally:
+        _llm_slots.release()
     return {"questions": questions}
 
 
 @app.post("/api/remove")
 async def remove(request: Request):
     """Remove one document (body {"id": ...}) or, with no id, everything."""
-    session_id = request.cookies.get("session_id", "")
+    session_id = request.cookies.get(_cookie_name(request), "")
     session = _sessions.get(session_id)
     doc_id = (await _json_body(request)).get("id")
 
@@ -458,7 +632,7 @@ async def remove(request: Request):
 
     _sessions.pop(session_id, None)
     response = JSONResponse({"ok": True, "documents": []})
-    response.delete_cookie("session_id")
+    response.delete_cookie(_cookie_name(request), secure=_is_https(request), httponly=True, samesite="lax")
     return response
 
 

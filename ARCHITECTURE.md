@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v1.8.0._
+_Current as of v2.0.0._
 
 ## Overview
 
@@ -24,7 +24,8 @@ documented chunking evaluation stays valid.
    | Endpoint | Does |
    |---|---|
    | `POST /api/ingest` | Upload a PDF (≤25MB). Adds it to the session (creating one and setting the cookie if needed), max 5 documents. |
-   | `POST /api/ask` | `{question}` → answer + sources, searched across all loaded documents, with the last 3 turns as context. |
+   | `POST /api/ask/stream` | `{question, doc_ids?}` → server-sent events: `sources`, then `token` pieces as the model writes, then `done` (or `error`). Used by the UI. |
+   | `POST /api/ask` | Same request → one JSON `{answer, sources}`. |
    | `POST /api/summary` | `{id}` → a short summary of one document. |
    | `POST /api/suggestions` | `{id}` → up to 4 starter questions the LLM writes from a sample of the document. |
    | `POST /api/remove` | `{id}` removes one document; no id (or removing the last one) clears the session and cookie. |
@@ -121,14 +122,18 @@ document's filename, embed, and build that document's FAISS index. Two
 uploads with the same filename are named `a.pdf` and `a.pdf (2)` so sources
 stay unambiguous.
 
-**Retrieval (per question).** The question is embedded with the same model.
-Each loaded document's index is searched and the hits are merged, keeping
-the overall top-k by score (`DEFAULT_TOP_K = 4`). For a follow-up, retrieval
-also runs on "previous question + current question", so "how many moons
-does it have?" still finds the passage about the planet named one turn
-earlier; a passage found by both queries keeps its higher score. With one
-document and no history this reduces exactly to a plain `store.search()`,
-which a test enforces.
+**Retrieval (per question) — hybrid since v2.0.0.** All chunks of the
+selected documents are ranked twice per query: by BM25 (`retriever.py`;
+term statistics taken over the selected documents together, so scores are
+comparable across them) and by cosine similarity of the MiniLM embeddings.
+Every ranking is fused with reciprocal rank fusion (k = 60) and the top 4
+kept (`DEFAULT_TOP_K`). For a follow-up there are two queries — the question
+and "previous question + question" — so four rankings are fused. Each
+passage keeps its cosine similarity as the displayed `score`. With one
+document and one query this is exactly the "Hybrid" retriever measured in
+`retrieval_eval.py` (Hit@4 0.82, MRR@10 0.70 vs 0.77 / 0.56 for embeddings
+alone); a test pins that equivalence, and `retrieval_eval.py` imports the
+same functions.
 
 **Routing whole-document questions.** Similarity search answers "where
 does the document talk about X". A question about the document as a whole
@@ -151,6 +156,16 @@ untrusted content fenced between `<<<BEGIN PASSAGES>>>` / `<<<END
 PASSAGES>>>`, so an instruction inside a PDF is reported, not obeyed
 (`tests/test_prompt_injection.py`). With earlier turns, one more rule says
 they may resolve references but are never evidence.
+
+**Streaming.** `llm_client.ask_stream()` sends `stream: true` and yields
+content deltas from the provider's SSE stream (decoded as UTF-8 explicitly —
+providers omit the charset and `requests` would otherwise assume
+ISO-8859-1). `main.py` fetches the sources and the *first* piece before
+opening the response, so configuration, rate-limit and provider errors still
+return a normal HTTP status; after that, a failure becomes an `error` event.
+The turn is saved to the history only when the stream completes, so a
+stopped answer never becomes context. The response carries
+`X-Accel-Buffering: no` so Nginx passes events through immediately.
 
 **Fallback model.** If the main model is still rate limited after retries
 (on Groq's free tier this is usually the 200k-tokens-per-day quota), and
@@ -219,6 +234,11 @@ Two scripts sit beside the app and call the pipeline modules directly:
 | Downgrade to HTTP | HSTS (1 year) over HTTPS; Nginx redirects plain HTTP, including requests to the raw IP |
 | Reconnaissance | `/docs`, `/redoc`, `/openapi.json` disabled; Nginx `server_tokens off` |
 | Leaking internals in errors | Generic message + reference code; details only in the server log |
+| Cross-site request forgery | SameSite=Lax cookie, plus a middleware that refuses API POSTs whose `Origin` isn't this host or whose `Sec-Fetch-Site` is `cross-site` |
+| Session cookie tampering | `__Host-session` over HTTPS: must be Secure, Path=/, no Domain, so no subdomain or HTTP response can set it |
+| Oversized JSON bodies | 16KB cap (`Content-Length` check in middleware, and on the body actually read) |
+| Overload (smoothness) | Semaphores: 4 concurrent LLM calls, 2 concurrent ingestions; wait ≤ 20s, then 503 "busy" with `Retry-After` |
+| Vulnerable dependencies | Dependabot updates; `pip-audit` in CI fails the build on any known advisory |
 | Cross-session access (IDOR) | Document ids are looked up only inside the caller's own session (256-bit cookie) |
 | Prompt injection via PDF text | Passages fenced and declared untrusted (see Generation) |
 | Third-party data flow | Page loads nothing external; only the question + retrieved passages go to the LLM provider, disclosed on the upload screen |

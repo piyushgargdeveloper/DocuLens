@@ -104,6 +104,8 @@ a PR:
   browsers that cached the previous release fetch the new files, plus the
   footer label and its release link). `tests/test_api.py` fails if any of
   them disagree.
+- CI also runs `pip-audit` on the installed dependencies. If it fails,
+  update the affected package (Dependabot usually already has a PR).
 - If your change touches retrieval or chunking, run `python
   retrieval_eval.py` and compare Hit@4 / MRR with
   `reports/retrieval_eval.md` (no API key needed). If it touches the prompt,

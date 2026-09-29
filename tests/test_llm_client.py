@@ -85,6 +85,12 @@ class _FakeResponse:
     def json(self):
         return self._body
 
+    def close(self):
+        pass
+
+    def iter_lines(self, decode_unicode=False):
+        yield from self._body.get("lines", [])
+
     def raise_for_status(self):
         if self.status_code >= 400:
             import requests
@@ -101,7 +107,7 @@ def test_rate_limited_primary_falls_back_to_the_second_model(monkeypatch):
 
     models = []
 
-    def fake_post(url, json, headers, timeout):
+    def fake_post(url, json, headers, timeout, stream=False):
         models.append(json["model"])
         if json["model"] == "primary":
             return _FakeResponse(429, headers={"retry-after": "900"})  # e.g. daily quota
@@ -131,7 +137,7 @@ def test_other_http_errors_do_not_trigger_the_fallback(monkeypatch):
 
     models = []
 
-    def fake_post(url, json, headers, timeout):
+    def fake_post(url, json, headers, timeout, stream=False):
         models.append(json["model"])
         return _FakeResponse(500)
 
@@ -141,3 +147,86 @@ def test_other_http_errors_do_not_trigger_the_fallback(monkeypatch):
     with pytest.raises(llm_client.LLMRequestError):
         llm_client.ask("q?", [])
     assert models == [models[0]]  # tried once, no fallback for a server error
+
+
+def _stream(*pieces, done=True):
+    import json as _json
+
+    lines = [f"data: {_json.dumps({'choices': [{'delta': {'content': p}}]})}" for p in pieces]
+    lines.insert(0, ": keep-alive")
+    lines.insert(1, 'data: {"choices": [{"delta": {"role": "assistant"}}]}')
+    if done:
+        lines.append("data: [DONE]")
+    return _FakeResponse(200, {"lines": lines})
+
+
+def test_streamed_answer_arrives_in_pieces(monkeypatch):
+    import llm_client
+
+    monkeypatch.setenv("LLM_API_KEY", "test")
+    monkeypatch.setattr(llm_client.requests, "post", lambda *a, **k: _stream("Jupiter ", "is ", "largest."))
+    assert list(llm_client.ask_stream("q?", [])) == ["Jupiter ", "is ", "largest."]
+
+
+def test_stream_falls_back_when_the_primary_is_rate_limited(monkeypatch):
+    import llm_client
+
+    models = []
+
+    def fake_post(url, json, headers, timeout, stream=False):
+        models.append((json["model"], stream))
+        if json["model"] == "primary":
+            return _FakeResponse(429, headers={"retry-after": "900"})
+        return _stream("from ", "backup")
+
+    monkeypatch.setenv("LLM_API_KEY", "test")
+    monkeypatch.setenv("LLM_MODEL", "primary")
+    monkeypatch.setenv("LLM_FALLBACK_MODEL", "backup")
+    monkeypatch.setattr(llm_client.requests, "post", fake_post)
+    assert "".join(llm_client.ask_stream("q?", [])) == "from backup"
+    assert models == [("primary", True), ("backup", True)]
+
+
+def test_empty_stream_is_retried_without_streaming(monkeypatch):
+    import llm_client
+
+    calls = []
+
+    def fake_post(url, json, headers, timeout, stream=False):
+        calls.append(stream)
+        return _stream() if stream else _reply("recovered answer")
+
+    monkeypatch.setenv("LLM_API_KEY", "test")
+    monkeypatch.setattr(llm_client.requests, "post", fake_post)
+    assert list(llm_client.ask_stream("q?", [])) == ["recovered answer"]
+    assert calls == [True, False]
+
+
+def test_error_event_in_the_stream_is_reported(monkeypatch):
+    import llm_client
+
+    monkeypatch.setenv("LLM_API_KEY", "test")
+    monkeypatch.setattr(
+        llm_client.requests, "post", lambda *a, **k: _FakeResponse(200, {"lines": ['data: {"error": {"message": "boom"}}']})
+    )
+    with pytest.raises(llm_client.LLMRequestError):
+        list(llm_client.ask_stream("q?", []))
+
+
+def test_stream_is_decoded_as_utf8_even_without_a_charset():
+    # Regression: providers send `text/event-stream` with no charset, requests
+    # then assumes ISO-8859-1, and "self‑attention" came out as mojibake.
+    import io
+    import json as _json
+
+    import requests
+
+    import llm_client
+
+    text = "Self‑attention needs O(1) steps [Page\u202f6] — café"
+    body = f"data: {_json.dumps({'choices': [{'delta': {'content': text}}]}, ensure_ascii=False)}\n\ndata: [DONE]\n\n"
+    response = requests.models.Response()
+    response.status_code = 200
+    response.headers["Content-Type"] = "text/event-stream"
+    response.raw = io.BytesIO(body.encode("utf-8"))
+    assert "".join(llm_client._stream_deltas(response)) == text

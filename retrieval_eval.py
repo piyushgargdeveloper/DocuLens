@@ -23,10 +23,8 @@ Usage:
 
 import argparse
 import json
-import math
 import re
 import time
-from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +32,7 @@ from sentence_transformers import SentenceTransformer
 
 from chunker import chunk_pages
 from pdf_loader import load_pdf_pages
+from retriever import BM25, ranking, reciprocal_rank_fusion, tokenize  # noqa: F401 (tokenize re-exported)
 
 TOP_K = 4  # pipeline.DEFAULT_TOP_K -- what the LLM is given
 MRR_CUTOFF = 10
@@ -56,56 +55,6 @@ SYSTEMS = ["BM25", "MiniLM", "BGE-small", "Hybrid"]
 
 def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
-
-
-def tokenize(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+", text.lower())
-
-
-class BM25:
-    """Okapi BM25 over a fixed list of texts.
-
-    score(q, d) = sum over query terms t of
-        idf(t) * tf(t,d) * (k1 + 1) / (tf(t,d) + k1 * (1 - b + b * |d| / avgdl))
-    Rare terms (high idf) that occur often in a short chunk score highest.
-    """
-
-    def __init__(self, texts: list[str], k1: float = 1.5, b: float = 0.75):
-        self.k1, self.b = k1, b
-        self.docs = [Counter(tokenize(t)) for t in texts]
-        self.lengths = [sum(d.values()) for d in self.docs]
-        self.avgdl = sum(self.lengths) / len(self.lengths)
-        df = Counter(term for d in self.docs for term in d)
-        n = len(self.docs)
-        self.idf = {term: math.log(1 + (n - f + 0.5) / (f + 0.5)) for term, f in df.items()}
-
-    def scores(self, query: str) -> np.ndarray:
-        out = np.zeros(len(self.docs))
-        for term in set(tokenize(query)):
-            idf = self.idf.get(term)
-            if idf is None:
-                continue
-            for i, doc in enumerate(self.docs):
-                tf = doc.get(term, 0)
-                if tf:
-                    norm = self.k1 * (1 - self.b + self.b * self.lengths[i] / self.avgdl)
-                    out[i] += idf * tf * (self.k1 + 1) / (tf + norm)
-        return out
-
-
-def ranking(scores: np.ndarray) -> list[int]:
-    """Chunk indices, best first (stable for ties)."""
-    return list(np.argsort(-scores, kind="stable"))
-
-
-def reciprocal_rank_fusion(rankings: list[list[int]], k: int = 60) -> list[int]:
-    """Combine rankings by summing 1 / (k + rank). Robust to the two systems'
-    scores being on different scales, which is why it's the usual hybrid choice."""
-    fused = Counter()
-    for rank_list in rankings:
-        for rank, idx in enumerate(rank_list, start=1):
-            fused[idx] += 1.0 / (k + rank)
-    return [idx for idx, _ in fused.most_common()]
 
 
 def question_metrics(order: list[int], relevant: set[int], chunk_pages_: list[int], gold_pages: set[int]) -> dict:

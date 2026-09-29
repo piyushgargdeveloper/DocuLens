@@ -5,7 +5,7 @@ small, self-contained RAG (Retrieval-Augmented Generation) tool for asking
 grounded questions about uploaded PDFs. It started as a single-document
 tool; the optional enhancements listed originally (multiple documents,
 conversation history, document summary) have since been built and are now
-part of the requirements below. _Current as of v1.8.0._
+part of the requirements below. _Current as of v2.0.0._
 
 ## Problem
 
@@ -67,6 +67,10 @@ Build a document question-answering tool that:
 | FR13 | Answer whole-document questions ("what is this about?") from an overview of the document, not similarity search. | No single passage resembles such a question. |
 | FR14 | Explain rather than quote: adapt the level on request, combine passages, and answer partially with what's missing instead of refusing outright. | The LLM's value over retrieval alone. |
 | FR15 | Keep answering when the main model's quota runs out (configurable fallback model). | Free-tier daily limits would otherwise take the live app down. |
+| FR16 | Stream answers as they are written, and let the user stop one. | Perceived speed; control over long answers. |
+| FR17 | Let the user choose which loaded documents a question searches. | Precision with several documents loaded. |
+| FR18 | Copy an answer with its sources; export the conversation as Markdown. | Answers are meant to be reused and cited. |
+| FR19 | Use the retrieval method that measured best (hybrid BM25 + embeddings). | Retrieval quality is measured, not assumed. |
 
 ## Non-Functional Requirements
 
@@ -106,5 +110,5 @@ Build a document question-answering tool that:
 - Python, PyMuPDF, sentence-transformers, FAISS, a configurable
   OpenAI-compatible LLM API, and a FastAPI backend serving a static
   HTML/CSS/JS frontend.
-- Must actually run and be tested before being called done — 90 automated
+- Must actually run and be tested before being called done — 103 automated
   tests plus real-browser checks of the deployed app (see `README.md`).

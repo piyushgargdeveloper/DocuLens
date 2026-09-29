@@ -327,3 +327,19 @@ understood and explainable without AI help (the task requires it):
 - It added a disclosure it had previously missed: its own earlier privacy
   note said the PDF isn't saved, but not that passages are sent to the LLM
   provider.
+
+## Version 2.0.0
+
+- The user asked for a genuine v2. The AI coding assistant proposed the
+  architecture (streaming, hybrid retrieval from the earlier measurement,
+  load control), security and UX changes, then built them with tests and
+  browser checks.
+- It verified that moving BM25/RRF into a shared module changed no
+  measured number, and that the app now scores exactly what the
+  evaluation measured, before claiming the improvement.
+- Its own screenshots exposed a bug it had introduced (streamed text
+  decoded as ISO-8859-1); it traced the cause, fixed it and added a
+  regression test.
+- It reported that half of the answer-level re-run came from the fallback
+  model because the main model's quota ran out, rather than presenting the
+  results as the main model's.
