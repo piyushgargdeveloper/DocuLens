@@ -5,10 +5,10 @@ existed) and is updated as real decisions, failures, and changes happen
 during implementation and testing. Nothing below is fabricated — entries
 are dated and note what actually happened.
 
-> **STATUS (2026-09-29, v1.7.0): feature-complete for the task brief and
+> **STATUS (2026-09-29, v1.8.0): feature-complete for the task brief and
 > deployed.** All core requirements plus the three optional enhancements
 > (multiple documents, follow-up questions, document summaries) are built,
-> covered by 74 automated tests, and verified in a real browser against
+> covered by 90 automated tests, and verified in a real browser against
 > the live deployment at https://ai-doc-assistant.duckdns.org. The
 > application accepts any PDF supplied at runtime — no document-specific
 > content, questions, page numbers or answers are hardcoded in the
@@ -332,3 +332,23 @@ date, what changed, why, and what (if anything) failed._
     - All 7 LLM-dependent tests (prompt injection, refusal, grounded answers) pass with the new prompt.
     - A re-run on the 120b model is pending its quota reset; it is the stronger model, so this is the conservative direction.
   - Tests: 67 run without an API key (plus 7 that call the LLM). They cover routing, the overview sample, the suggestions parser and endpoint, the fallback (rate-limited primary falls back, no fallback reports the rate limit, a 500 does not trigger the fallback), and the grounding contract in the prompt.
+- **2026-09-29** — v1.8.0: security audit against a five-part checklist the user provided (`vibe-coding-security-prompts.pdf`: secret leaks, personal-data flow, pre-deploy audit, deep audit, attacker's perspective). Every item was checked against the code, the full git history and the **live** site rather than assumed. Items that don't apply (passwords, JWT, roles, payments, SQL, database) are noted as such.
+  - **Passed as-is:**
+    - No secrets in tracked files or anywhere in git history (pattern scan over every commit). `.env` was never committed, is gitignored and is excluded from the Docker image (verified inside the running container).
+    - `.env`, `.git/*`, source files and `/static/../` traversal all return 404 live.
+    - CORS is not enabled. The session cookie is `httponly`/`samesite`/`Secure`. No `localStorage`, `innerHTML` or `eval`.
+    - There is no IDOR: another session can't reach a document even with its id, and a new test proves it.
+    - The app listens only on 127.0.0.1; only 22, 80 and 443 are open.
+  - **Found and fixed** (the first four were confirmed live before fixing):
+    1. **No security headers at all.** Added a strict CSP (`default-src 'self'`, no inline code, `frame-ancestors 'none'`), `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, COOP, and HSTS over HTTPS. Verified in a browser: 0 CSP violations.
+    2. **`/docs`, `/redoc` and `/openapi.json` were public** (FastAPI's defaults), a full map of the API. Disabled.
+    3. **The app was served over plain HTTP on the raw IP** (`http://65.0.199.172/` returned the app, because Nginx's `default_server` proxied to it). That bypassed TLS entirely. The block now redirects to the HTTPS domain. Nginx `server_tokens` was also turned off; it had been advertising `nginx/1.28.3`.
+    4. **No rate limiting.** Any script could spend the shared LLM quota, which this session showed runs out, or tie up the CPU with uploads. Added per-IP sliding-window limits: LLM endpoints 10/min and 100/h; uploads 10 per 10 min. `X-Real-IP` is trusted only from the loopback proxy, so it can't be spoofed to dodge the limit (tested).
+    5. **Unbounded document size in memory.** A 25MB text-heavy PDF could hold gigabytes across sessions on a 2GB server. Documents over 1500 chunks (about 360 pages) are now rejected *before* embedding (tested: the embedder is never called).
+    6. **Upload type trusted the extension only.** A file must now start with `%PDF-`. Filenames, which label passages in the prompt, are reduced to the basename, stripped of control characters and capped at 120 characters.
+    7. **Unexpected ingestion errors were misreported** as "couldn't extract any text from this PDF". They are now a 500 with a reference code that matches the server log, and so are all LLM errors. Internals are never echoed.
+    8. **Personal-data flow was only half disclosed.** The upload screen said the PDF isn't saved, but not that questions and retrieved passages go to the LLM provider. It now says so. The page also loaded Google Fonts, which sent every visitor's IP to Google; the fonts (SIL OFL) are now self-hosted, and the page makes no third-party requests (verified: 0 external requests).
+    9. On the server, `.env` was world-readable (644); it is now 600.
+    10. With no `LLM_API_KEY`, the app now logs a startup warning. It deliberately doesn't refuse to start, because uploads and retrieval still work and the credential-free test suite and CI rely on it.
+  - **Deliberately not done:** enabling `ufw` on the instance. The AWS security group is already the firewall (only 22 restricted, 80 and 443 open), and a host firewall misstep can lock out SSH. The rate limits are in-memory, like the sessions, so they reset on restart and are per process; that matches the single-instance deployment.
+  - 16 new tests in `tests/test_security.py` (83 run without an API key, plus 7 LLM tests).

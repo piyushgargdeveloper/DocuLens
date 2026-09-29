@@ -5,7 +5,7 @@ small, self-contained RAG (Retrieval-Augmented Generation) tool for asking
 grounded questions about uploaded PDFs. It started as a single-document
 tool; the optional enhancements listed originally (multiple documents,
 conversation history, document summary) have since been built and are now
-part of the requirements below. _Current as of v1.7.0._
+part of the requirements below. _Current as of v1.8.0._
 
 ## Problem
 
@@ -81,6 +81,8 @@ Build a document question-answering tool that:
 | NFR7 | Bounded resources: 25MB uploads, 1000-character questions, 5 documents per session, 50 sessions, 2-hour idle expiry enforced by a background sweep. |
 | NFR8 | No document-specific content hardcoded in the application source. |
 | NFR9 | Uploaded documents are never persisted: no disk writes, and their extracted text is deleted on removal or expiry. |
+| NFR10 | Abuse-resistant: per-client rate limits, real-PDF check, document size cap before embedding, strict CSP and security headers, no public API docs, errors carry a reference instead of internals. |
+| NFR11 | Users are told what leaves the server: questions and retrieved passages go to the LLM provider; the page itself contacts no third party. |
 
 ## Acceptance Criteria
 
@@ -104,5 +106,5 @@ Build a document question-answering tool that:
 - Python, PyMuPDF, sentence-transformers, FAISS, a configurable
   OpenAI-compatible LLM API, and a FastAPI backend serving a static
   HTML/CSS/JS frontend.
-- Must actually run and be tested before being called done — 74 automated
+- Must actually run and be tested before being called done — 90 automated
   tests plus real-browser checks of the deployed app (see `README.md`).
