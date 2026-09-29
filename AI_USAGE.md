@@ -192,6 +192,15 @@ understood and explainable without AI help (the task requires it):
   `IndexFlatIP` is exact search.
 - **Grounding** (`llm_client.py`): the system prompt restricts answers to
   fenced passages and defines the exact "not found" refusal string.
+- **Multiple documents and follow-ups** (`pipeline.retrieve()`/`answer()`):
+  one index per document, merged by score; follow-up retrieval also uses
+  the previous question; earlier turns may resolve references but are
+  never evidence.
+- **Document retention** (`main.py`): PDFs are never written to disk; text
+  lives in the in-memory session until removal or 2 hours idle, enforced by
+  a background task.
+- **Frontend safety** (`static/app.js`): all document/model text is inserted
+  as text, never HTML; citations are built with DOM nodes.
 - **Why no LangChain**: see `DECISIONS.md` decision #1 and its outcome.
 
 ## Principles followed
@@ -237,3 +246,25 @@ understood and explainable without AI help (the task requires it):
 - The critique pass found and fixed layout issues from screenshots, and a
   real accessibility bug by keyboard-testing: the upload area had never
   been reachable with the Tab key. Details are in `DECISIONS.md`.
+
+## Review, Documentation and Privacy Passes (v1.4.1–v1.4.2)
+
+- **v1.4.1:** the user asked why a fixed Saturn example appeared on the
+  upload screen. The AI coding assistant had added it as a decorative
+  specimen without labelling it; it acknowledged that this contradicted
+  the project's no-hardcoded-content rule, removed it, and searched the
+  application source to confirm no sample-document content remained.
+- **Documentation refresh:** every document was re-read against the code.
+  `ARCHITECTURE.md` was rewritten and the spec, plan, README, security and
+  contribution docs were corrected where they still described the
+  single-document app. Chronological logs (this file, `DECISIONS.md`) were
+  left as written.
+- **v1.4.2:** the user reported that answers auto-scrolled to the bottom
+  and asked whether uploaded PDFs are deleted. The assistant checked what
+  is actually stored before changing anything (nothing on disk; text in
+  memory), found a real gap (expiry only ran on requests) and fixed it with
+  a background sweep, and — while measuring the scroll fix — found a mobile
+  layout bug that pushed the ask box off-screen. Each fix has a test or a
+  recorded browser measurement.
+- Throughout, releases were only tagged after CI passed and the live site
+  was checked in a real browser.

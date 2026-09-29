@@ -95,7 +95,10 @@ a PR:
   second PDF, a summary, reloading the page (session restored), and
   removing one / all documents. If you touched `static/`, also check a
   375px-wide viewport, dark mode, and keyboard access (Tab reaches the
-  upload area). The frontend has no automated test coverage.
+  upload area). Ask several long questions and check that each answer
+  opens at its question (not scrolled to the bottom) and that, on a phone,
+  the ask box stays on screen as the conversation grows. The frontend has
+  no automated test coverage.
 - If you changed anything in `static/`, bump the `?v=` query on the
   `style.css` and `app.js` URLs in `static/index.html`, so browsers that
   cached the previous release fetch the new files.

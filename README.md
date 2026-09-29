@@ -214,6 +214,13 @@ resembling production use.
 7. Click **Summarize** under a document for a short summary of it.
 8. Use **×** to remove one document, or **Remove all** to start over.
 
+Your PDF is never saved to disk. Its extracted text is kept in server
+memory only while you use it, and is deleted when you remove the document,
+after 2 hours of inactivity, or when the server restarts.
+
+When an answer arrives, the conversation scrolls to your question so the
+answer reads from its start.
+
 If the document contains no extractable text (empty, corrupt,
 password-protected, or image-only without OCR), or the LLM API key is
 missing/invalid, the app shows a clear error message instead of

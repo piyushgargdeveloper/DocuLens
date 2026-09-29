@@ -30,7 +30,9 @@ answer is a two-column spread: the answer in a readable measure on the
 left, its source passages as numbered-by-page margin notes on the right. On
 a phone the margin folds under the answer. Questions are not bubbles; they
 are set like the question in a printed interview, and each exchange is
-separated by a hairline, the way entries in a notebook are.
+separated by a hairline, the way entries in a notebook are. An answer is
+read from its first line: when one arrives, the page turns to its
+question rather than to the bottom of the conversation.
 
 Colour is ink on paper and nothing else. The interface itself is
 achromatic: dark ink for text, buttons and focus, soft ink for secondary
