@@ -110,8 +110,8 @@ Added later, each with its reasoning in `DECISIONS.md`:
 - Security hardening: prompt-injection defense, `httponly`/`samesite`/
   `Secure` session cookie, no exception text returned to clients, upload
   and question size limits.
-- Clickable page citations and margin-note sources ("Annotated Margin",
-  `DESIGN.md`), light/dark themes, keyboard-accessible upload.
+- Clickable page citations and sources beside each answer, light/dark
+  themes, keyboard-accessible upload.
 - Measured retrieval evaluation (`retrieval_eval.py`): Hit@k and MRR on a
   labelled set, BM25 baseline vs two embedding models vs hybrid.
 - LLM beyond extraction (v1.7.0): whole-document question routing,
@@ -121,6 +121,9 @@ Added later, each with its reasoning in `DECISIONS.md`:
   retrieval in production, per-question document scope, copy/export,
   new composer, concurrency limits, CSRF guard, `__Host-` cookie,
   `pip-audit` in CI.
+- v2.1.0: visible redesign ("Modern product", `DESIGN.md`): Inter,
+  sidebar and conversation cards, question bubbles, source cards, floating
+  composer, full footer with credit, links, privacy dialog and version.
 - Document retention: uploads are never written to disk; extracted text is
   deleted on removal or after 2 hours idle, enforced by a background task.
 - `pytest` suite (103 tests) with GitHub Actions CI, CodeQL and Dependabot.

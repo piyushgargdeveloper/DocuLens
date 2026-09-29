@@ -1,8 +1,10 @@
 # Design Direction
 
-Written before the v1.4.0 frontend changes, following the design-direction
-method: interrogate the brief, commit to one named direction, and name what
-it is not. When a visual decision is hard, this document decides it.
+Rewritten for v2.1.0. The earlier "Annotated Margin" direction (v1.4–v2.0:
+ink on paper, serif answers, no UI colour) read as too plain in use — the
+footer and the controls didn't look like a finished product. The owner chose
+a new direction from three options; this document records it. When a visual
+decision is hard, this document decides it.
 
 ## Brief
 
@@ -10,78 +12,72 @@ it is not. When a visual decision is hard, this document decides it.
   glance. The answer and the passage it came from must be visible together.
 - **Audience:** students and reviewers reading on a laptop or phone,
   skeptical of AI answers, wanting proof rather than prose.
-- **Tone:** scholarly, exact, calm. **Not:** chatty, techy, glossy.
+- **Tone:** clean, confident, calm — a tool you'd trust at work.
+  **Not:** playful, glossy, "AI-glow".
 - **Constraints:** vanilla HTML/CSS/JS, no build step; WCAG AA; works at
-  375px; untrusted document text is only ever inserted as text.
-- **Default we deviate from:** the chat-app template (coloured bubbles,
-  blue accent, sidebar + card, centred upload card). We deviate in
-  structure (sources in a margin), colour (no UI accent at all) and scale
-  (a title-page headline).
+  375px; untrusted document text is only ever inserted as text; nothing
+  loaded from other origins (fonts are self-hosted).
 
-# Annotated Margin
+# Modern Product
 
-This interface believes an answer is only as good as its footnote. Its
-ancestors are the scholar's annotated copy and the printed edition with
-marginal notes: the text runs down the page, and the evidence for each claim
-sits beside it in the margin, not behind a click.
+The reference is a well-made SaaS tool in the Notion/Linear family: quiet
+neutral surfaces, one accent colour used with intent, depth from hairline
+borders and soft shadows rather than gradients.
 
-Structure follows the page, not the chat window. On a wide screen every
-answer is a two-column spread: the answer in a readable measure on the
-left, its source passages as numbered-by-page margin notes on the right. On
-a phone the margin folds under the answer. Questions are not bubbles; they
-are set like the question in a printed interview, and each exchange is
-separated by a hairline, the way entries in a notebook are. An answer is
-read from its first line: when one arrives, the page turns to its
-question rather than to the bottom of the conversation.
+**Surfaces.** A light zinc page holds two white cards: the documents sidebar
+on the left and the conversation on the right. Cards have a 1px border, a
+16px radius and a soft shadow; nothing is nested more than one card deep.
+Dark mode swaps to near-black surfaces with the same structure.
 
-Colour is ink on paper and nothing else. The interface itself is
-achromatic: dark ink for text, buttons and focus, soft ink for secondary
-text, a cool paper surface on a slightly darker desk. The only chroma in the
-product is highlighter yellow, and it appears only where the document is
-being cited: the page tabs inside answers and the passage they point to
-(plus the wordmark, which is itself a drawing of a highlighted line).
-Because nothing else is coloured, the yellow always means "this is the
-evidence".
+**Colour.** Zinc neutrals for everything structural and one iris accent
+(`#5B5BD6`, lighter in dark mode) for what the reader acts on or should
+notice: the primary button, the reader's question bubble, send, focus rings,
+citation chips. Highlighter yellow is kept for exactly one job — the source
+passage a clicked citation points to — so yellow still means "this is the
+evidence". Green is only a status dot (what's being searched, the live
+version). The footer's heart is red.
 
-Type has two voices. Source Serif carries everything that is reading —
-answers, passages, the title page — in a bookish, unhurried register.
-Atkinson Hyperlegible carries everything that is operating — buttons,
-filenames, page numbers — plainly and legibly. The empty screen is a title
-page: a large serif statement several times the body size, set left,
-without a card around it.
+**Type.** Inter (self-hosted variable font) everywhere, 15px body, tight
+negative tracking on the hero headline. Hierarchy comes from weight and
+colour (text / soft / faint), not from switching typefaces.
 
-Motion only ever answers something the reader did, and never decorates.
-The signature motion is the highlighter: when a citation is clicked, a stroke
-sweeps across its passage in the margin, and the same stroke appears when a
-PDF is dragged over the drop area. Around it, quieter motion shows what just
-changed: a new question, answer or document rises a few pixels into place;
-an answer's margin notes follow one after another, as if being pinned beside
-it; while the documents are searched, a thin ink line reads across under
-"Searching…". The title page arrives in reading order whenever it is shown. Nothing moves on
-scroll, nothing loops except the reading line, and all of it switches off
-under reduced motion.
+**Conversation.** The reader's question is a right-aligned accent bubble;
+the assistant's reply sits on the left behind a small "AI" avatar, as plain
+readable text. On a wide conversation each answer has a **Sources** column
+of cards beside it (page, similarity, clamped passage); on a phone the
+cards fold under the answer behind "Show sources". Page citations inside
+the answer are small accent pills (`p. 3`); clicking one lights up its
+source card in yellow. Follow-ups ("Explain more simply", "Go deeper") and
+Copy are outlined pill buttons under the answer; suggested questions are a
+grid of small cards. An answer is read from its first line: when one
+arrives, the view scrolls to its question, not to the bottom.
 
-The composer is the one control the reader returns to on every turn, so
-it is set like the answer line of a form: a single ruled box holding attach,
-the question and send, with a quiet line beneath saying which documents will
-be searched and how to operate it (hidden on phones, which have no keys to
-hint at). Send turns into Stop while an answer streams in; a blinking ink
-caret marks where the next words will land, and the text reads from its
-first line — the page does not chase the words downward.
+**Composer.** A floating rounded box with a soft shadow holds attach, the
+question and a round send button; it gains an accent focus ring. Send
+becomes Stop while an answer streams, and a thin accent caret marks where
+the next words land. Beneath it: a green dot with what will be searched,
+and keyboard hints (hidden on phones).
 
-Suggested questions and the "Explain more simply" / "Go deeper" actions
-are set as quiet ink text and outlined serif prompts — the same register as
-the conversation, never as coloured chips — so they read as part of the page.
+**Start page.** Centred: an accent "eyebrow" badge, a large bold headline,
+a short explanation, a white drop card with an upload icon, three feature
+cards (Grounded / Multi-document / Private) and the privacy note. On a
+phone it scrolls rather than running under the footer.
 
-The footer credits the author ("Made with ❤️ by Piyush Garg"), links the
-repository and names the release. Its heart is the one colour outside the
-highlighter — a deliberate exception, kept small and in the footer, where it
-can't be mistaken for evidence.
+**Footer.** A full-width bar in three groups: brand + tagline, links
+(GitHub, Releases, Report an issue, Privacy — which opens a dialog), and
+the credit "Made with ❤️ by Piyush Garg" with a version badge linking to
+the release notes. On a phone the brand is dropped (the top bar already
+shows it) and the rest wraps into two short rows.
 
-**Is not:** a chat app, a SaaS dashboard, or a dark-mode "AI" product with
-glowing accents. Kills on sight: speech bubbles, blue primary buttons,
-gradients, drop shadows, cards inside cards.
+**Motion** answers what the reader did: views fade in; the start page
+rises in reading order; messages, documents and source cards rise a few
+pixels into place (cards staggered); hover lifts cards and buttons by a
+pixel; the dialog pops in; the heart beats slowly. All of it is switched
+off under `prefers-reduced-motion`.
 
-**Signature move:** every answer carries its evidence in the margin, and
-clicking a yellow page tab sweeps a highlighter across the exact passage
-beside it.
+**Is not:** a gradient-heavy "AI" landing page, a glassmorphism demo, or a
+dashboard of widgets. Kills on sight: gradients, glowing accents, more than
+one accent colour, cards inside cards, colour used only for decoration.
+
+**Signature move:** every answer carries its sources beside it, and
+clicking a `p. N` citation lights up the exact passage it came from.

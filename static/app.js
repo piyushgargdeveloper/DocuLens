@@ -889,3 +889,13 @@ window.addEventListener("drop", (e) => {
   if (document.body.dataset.view === "chat") uploadAdditional(file);
   else if (document.body.dataset.view === "upload") uploadFirst(file);
 });
+
+// Footer "Privacy" opens a short explanation of what happens to a PDF.
+const privacyDialog = document.getElementById("privacy-dialog");
+document.getElementById("privacy-btn").addEventListener("click", () => privacyDialog.showModal());
+// A click on the backdrop (outside the dialog box) closes it too.
+privacyDialog.addEventListener("click", (e) => {
+  const box = privacyDialog.getBoundingClientRect();
+  const outside = e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom;
+  if (e.target === privacyDialog && outside) privacyDialog.close();
+});
