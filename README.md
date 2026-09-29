@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.4.2
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.5.0
 
 ## What it does
 
@@ -107,6 +107,7 @@ FastAPI ──► embed question (+ previous question for follow-ups)
 | Backend / API | `main.py` | FastAPI, in-memory per-session state |
 | Frontend | `static/index.html`, `static/style.css`, `static/app.js` | vanilla HTML/CSS/JS, no framework |
 | Evaluation | `evaluate.py` | reproducible two-config comparison script |
+| Retrieval evaluation | `retrieval_eval.py` | Hit@k / MRR vs a BM25 baseline and two embedding models |
 | Design | `DESIGN.md` | the frontend's written design direction |
 
 Full design rationale is in `PROJECT_SPEC.md`, `ARCHITECTURE.md`, and
@@ -321,10 +322,11 @@ a more thorough evaluation:
   - Config B: chunk_size=1000, chunk_overlap=200, top_k=5
 
 **Result:** Config A incorrectly refused to answer 4 of the 5 answerable
-questions, and gave one factually wrong numeric answer (BLEU 41.0
-instead of the correct 41.8) — most likely because its 300-character
-chunks split a dense results table mid-row. Config B answered all 5
-correctly with accurate page citations. Both configs correctly refused
+questions. It answered the English-French BLEU question with 41.0 where
+Config B said 41.8 — both are in the paper (41.8 in the abstract and
+Table 2, 41.0 in the Section 6.1 text on page 8), which was first logged
+as a mis-read and later corrected. Config B answered all 5 with accurate
+page citations. Both configs correctly refused
 the genuinely unanswerable question. Full per-question results and
 analysis are in `DECISIONS.md`. This is why the implementation's default
 `chunk_size` (800) is close to config B, not the smaller value.
@@ -337,6 +339,62 @@ python evaluate.py --pdf <path-to-pdf> --questions <path-to-questions.json> --ou
 
 where `<path-to-questions.json>` is a JSON file containing a list of
 question strings.
+
+### Retrieval evaluation (measured)
+
+The comparison above judges whole answers. `retrieval_eval.py` measures
+the step that decides what the LLM gets to see — retrieval — with
+standard information-retrieval metrics and no LLM calls, so it is free,
+deterministic and fully reproducible:
+
+- **Labelled set:** 39 questions on the same 15-page paper
+  (`sample_docs/retrieval_eval_set.json`), each with its gold page and a
+  short evidence phrase copied from that page. A retrieved chunk counts as
+  relevant only if it contains the phrase; the script refuses to run if
+  any phrase is missing from its page, so labels can't silently drift.
+- **Retrievers:** a **BM25** keyword baseline (implemented in the script),
+  **MiniLM** (`all-MiniLM-L6-v2`, the app's model), **BGE-small**
+  (`BAAI/bge-small-en-v1.5`, a second Hugging Face model) and a **Hybrid**
+  of BM25 + MiniLM fused with reciprocal rank fusion.
+- **Metrics:** Hit@1 and Hit@4 (4 = the app's top_k, i.e. what the LLM
+  receives), MRR@10, and Page-Hit@4 — across three chunking settings.
+
+![Hit@4 by retriever and chunking configuration](reports/retrieval_eval.svg)
+
+At the app's default chunking (800/150):
+
+| Retriever | Hit@1 | Hit@4 | MRR@10 |
+|---|---|---|---|
+| BM25 (baseline) | 0.64 (25/39) | **0.87** (34/39) | **0.75** |
+| MiniLM (used by the app) | 0.38 (15/39) | 0.77 (30/39) | 0.56 |
+| BGE-small | 0.59 (23/39) | 0.77 (30/39) | 0.68 |
+| Hybrid (BM25 + MiniLM) | 0.56 (22/39) | 0.82 (32/39) | 0.70 |
+
+**What it shows:**
+- **Chunk size matters for every retriever:** 300-character chunks are
+  the worst setting for all four (MiniLM Hit@4 0.59 vs 0.77 at 800) — the
+  same direction as the answer-level comparison above.
+- **The keyword baseline beat the app's embedding model on this
+  document**, especially at rank 1 (Hit@1 0.64 vs 0.38). BGE-small ranks
+  the right chunk first far more often than MiniLM (0.59 vs 0.38) at the
+  cost of ~2× the embedding time. Fusing BM25 with MiniLM lifts MiniLM's
+  Hit@4 from 0.77 to 0.82 and MRR from 0.56 to 0.70.
+- **Caveats, stated plainly:** the questions were written by reading the
+  document, so they share its wording — which favours BM25 and likely
+  overstates its lead over embeddings for real users who paraphrase. With
+  39 questions one question is 0.026, so gaps under ~0.05 are within
+  noise. It is one document.
+
+**Decision:** the app is unchanged for now. Hybrid retrieval is the
+evidence-backed next step — it keeps the embedding model's handling of
+paraphrase while recovering exact-term matches — but it should be
+re-measured on the organizers' document first, since this set's wording
+flatters keyword search. Full results, per-question misses and timings:
+[`reports/retrieval_eval.md`](reports/retrieval_eval.md).
+
+```bash
+python retrieval_eval.py --output reports/retrieval_eval.md --chart reports/retrieval_eval.svg
+```
 
 ## Deployment
 
@@ -417,9 +475,10 @@ without a shared session store.
 - Uploads are capped at 25MB, and scanned/image-only PDFs with no
   embedded text layer will not extract any text (no OCR step).
 - Chunking is character-based, not sentence/semantic-boundary aware —
-  simple and predictable, but can occasionally split content (e.g. a
-  table row) across a chunk boundary, as observed during evaluation
-  above.
+  simple and predictable, but a sentence or table row can be cut at a
+  chunk boundary, and small chunks measurably hurt retrieval (Hit@4 0.59
+  at 300 characters vs 0.77 at 800 for the app's retriever — see
+  [Retrieval evaluation](#retrieval-evaluation-measured)).
 - Retrieval quality depends on the embedding model
   (`all-MiniLM-L6-v2`) — a small, fast, general-purpose model chosen for
   reliability at this project's scale, not maximum retrieval accuracy.
@@ -440,8 +499,8 @@ without a shared session store.
 - **Full-document summary** — map-reduce over every chunk once a
   provider with a higher rate limit is used.
 - **Smarter chunking** — sentence- or section-boundary-aware chunking
-  instead of a fixed character window, to reduce the table-splitting
-  failure mode observed in evaluation.
+  instead of a fixed character window, so facts aren't cut at a chunk
+  boundary.
 - **Reranking** — a lightweight cross-encoder reranking step over the
   initial retrieval results, for higher-precision passage selection on
   larger documents.

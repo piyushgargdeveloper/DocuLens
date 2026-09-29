@@ -268,3 +268,22 @@ understood and explainable without AI help (the task requires it):
   recorded browser measurement.
 - Throughout, releases were only tagged after CI passed and the live site
   was checked in a real browser.
+
+## Measured Retrieval Evaluation
+
+- The user noted that the other AI/ML tasks in the brief looked heavier.
+  The AI coding assistant compared the four tasks' requirements and
+  concluded the gap was measurement, not features: the others report
+  metrics against a baseline, while this project's evaluation was
+  qualitative. With the user's agreement it added `retrieval_eval.py`
+  (Hit@k, MRR, a BM25 baseline, two Hugging Face embedding models and a
+  hybrid) without changing the app.
+- The labelled set was built from the extracted text of each page, with
+  every label's evidence phrase checked automatically against its page.
+- The result that the keyword baseline beat the app's own embedding model
+  was reported as found, with its likely bias (questions written from the
+  document's wording) stated rather than hidden.
+- While labelling, the assistant found that an earlier claim in this
+  project's own logs was wrong: the "misread BLEU 41.0" is actually printed
+  on page 8 of the paper. The claim was corrected where it appeared, with
+  the original log entries kept and annotated.
