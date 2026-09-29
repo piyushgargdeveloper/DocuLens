@@ -234,3 +234,27 @@ def test_upload_temp_file_is_closed_right_after_reading(client, sample_pdf_bytes
     monkeypatch.setattr(UploadFile, "close", tracking_close)
     client.post("/api/ingest", files={"file": ("sample.pdf", sample_pdf_bytes, "application/pdf")})
     assert "sample.pdf" in closed
+
+
+def test_page_shows_the_same_version_as_the_app():
+    """static/index.html repeats the version (asset ?v=, footer, release link);
+    this catches a release where one of them wasn't bumped."""
+    import re
+
+    import main
+
+    html = (main.STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    found = (
+        re.findall(r"\?v=([\d.]+)", html)
+        + re.findall(r"releases/tag/v([\d.]+)", html)
+        + re.findall(r">v([\d.]+)<", html)
+    )
+    assert len(found) == 4  # style.css, app.js, release link, footer label
+    assert set(found) == {main.APP_VERSION}
+    assert main.app.version == main.APP_VERSION
+
+
+def test_footer_credits_the_author_and_links_the_repository(client):
+    html = client.get("/").text
+    assert "Made with" in html and "Piyush Garg" in html
+    assert 'href="https://github.com/piyushgargog/ai-document-assistant"' in html

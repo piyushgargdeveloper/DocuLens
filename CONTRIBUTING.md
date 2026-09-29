@@ -99,9 +99,11 @@ a PR:
   opens at its question (not scrolled to the bottom) and that, on a phone,
   the ask box stays on screen as the conversation grows. The frontend has
   no automated test coverage.
-- If you changed anything in `static/`, bump the `?v=` query on the
-  `style.css` and `app.js` URLs in `static/index.html`, so browsers that
-  cached the previous release fetch the new files.
+- For a release, bump `APP_VERSION` in `main.py` and the version in
+  `static/index.html` (the `?v=` query on `style.css` and `app.js`, so
+  browsers that cached the previous release fetch the new files, plus the
+  footer label and its release link). `tests/test_api.py` fails if any of
+  them disagree.
 - If your change touches retrieval or chunking, run `python
   retrieval_eval.py` and compare Hit@4 / MRR with
   `reports/retrieval_eval.md` (no API key needed). If it touches the prompt,

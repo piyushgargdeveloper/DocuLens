@@ -33,7 +33,7 @@ substitute for describing what you actually ran (see `CONTRIBUTING.md`):
 - [ ] I updated relevant documentation (`README.md` / `ARCHITECTURE.md` /
       `DECISIONS.md`) if this changes user-facing behavior or a design
       decision
-- [ ] If I changed `static/`, I bumped the `?v=` asset version in
-      `static/index.html`
+- [ ] For a release, I bumped `APP_VERSION` in `main.py` and the version in
+      `static/index.html` (asset `?v=`, footer label, release link)
 - [ ] I did not commit `.env`, an API key, or any other secret
 - [ ] This PR is focused on one concern

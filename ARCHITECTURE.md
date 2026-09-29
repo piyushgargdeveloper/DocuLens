@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v1.5.0._
+_Current as of v1.6.0._
 
 ## Overview
 
@@ -54,7 +54,10 @@ documented chunking evaluation stays valid.
    highlights the matching passage. Every dynamic string is inserted with
    `textContent` or text nodes, never `innerHTML`. All requests go through
    one `api()` helper that turns network failures and non-JSON proxy error
-   pages into readable messages instead of a stuck UI.
+   pages into readable messages instead of a stuck UI. The release version
+   lives once in `main.py` (`APP_VERSION`, also the FastAPI app version);
+   the page repeats it in its asset URLs and footer, and a test fails if
+   they drift apart.
 
 3. **Document loader** (`pdf_loader.py`)
    PyMuPDF extracts text page by page into `[(page_number, text), ...]`,

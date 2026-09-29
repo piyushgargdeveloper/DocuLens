@@ -5,10 +5,10 @@ existed) and is updated as real decisions, failures, and changes happen
 during implementation and testing. Nothing below is fabricated — entries
 are dated and note what actually happened.
 
-> **STATUS (2026-09-29, v1.4.2): feature-complete for the task brief and
+> **STATUS (2026-09-29, v1.6.0): feature-complete for the task brief and
 > deployed.** All core requirements plus the three optional enhancements
 > (multiple documents, follow-up questions, document summaries) are built,
-> covered by 54 automated tests, and verified in a real browser against
+> covered by 56 automated tests, and verified in a real browser against
 > the live deployment at https://ai-doc-assistant.duckdns.org. The
 > application accepts any PDF supplied at runtime — no document-specific
 > content, questions, page numbers or answers are hardcoded in the
@@ -287,3 +287,26 @@ date, what changed, why, and what (if anything) failed._
   - **Correction to the 2026-09-19 finding.** Labelling page 8 showed that the paper itself says "our big model achieves a BLEU score of 41.0" in Section 6.1, while the abstract and Table 2 say 41.8. Config A's "41.0" was grounded in the document, not a mis-read of a split table as recorded at the time. The Real-World Validation section, README and architecture notes are corrected; the claim that small chunks caused false refusals (4 of 5) is unaffected and is now also supported by the Hit@4 numbers above.
   - 6 new tests (54 total): BM25 ranking, RRF fusion, metric arithmetic, and a check that every label in the set is backed by its page.
 - **2026-09-29** — Deployed v1.5.0 to EC2. **The first attempt silently deployed the old code.** The deploy fetched with `git fetch origin --tags`. The server still held the release tags from before the 2026-09-29 history rewrite, so git refused to move them and the fetch failed. The fetch was the first link in an `a && b && c` chain, and `set -e` does not stop a script for a failure inside such a chain, so the `git reset` was skipped without an error. The image was rebuilt from v1.4.2 code, tagged v1.5.0, and passed its startup check. It was caught only because the deploy script also checked that the new file (`retrieval_eval.py`) existed inside the container. The app itself was identical, so users saw no difference. Fix: fetch `main` and tags with explicit force refspecs (`+refs/tags/*:refs/tags/*`), run each step as its own command under `set -euo pipefail` so any failure stops the deploy, and assert a file from the new release is present before switching containers. While there, the server's copy of the pre-rewrite history (unreferenced objects) was pruned with `git reflog expire` + `git gc --prune=now`. Verified on the live site after the redeploy: citations, margin notes, follow-up, refusal, multiple documents, mobile notes, scroll position; 0 console errors.
+- **2026-09-29** — v1.6.0: author credit, version display, motion and polish (frontend only).
+  - **Footer.** "Made with ❤️ by Piyush Garg", a link to the GitHub repository, and the running version, which links to its release notes. The version is now defined once, as `APP_VERSION` in `main.py` (also passed to FastAPI). The page must repeat it in four places: the two asset `?v=` queries, the footer label and the release link. A new test fails if any of them differs, which closes the gap that caused the v1.2.0 stale-cache bug (a version bump that depended on memory). The heart is the one colour outside the highlighter. `DESIGN.md` records it as a deliberate, footer-only exception.
+  - **Motion, within the design direction** (`DESIGN.md` updated: motion answers an action and never decorates):
+    - New questions, answers and documents rise 6px into place (240ms).
+    - An answer's margin notes follow one after another (60ms stagger).
+    - "Searching…" gets a thin ink line that reads across under it, replacing a blinking label.
+    - Views fade in when they switch.
+    - The title page arrives in reading order when shown.
+    - Buttons respond to a press.
+
+    Only documents that are new animate: the list is re-rendered on every change, and animating all of them each time would be noise. Under `prefers-reduced-motion` every animation is shortened to nothing *and its delay removed*; without the second part the staggered notes would still be invisible for up to 300ms.
+  - **Polish.**
+    - *Ask* is disabled until there is a non-blank question.
+    - A counter appears from 800 of the 1000 allowed characters and turns red at the limit.
+    - `theme-color` meta for the mobile browser bar in light and dark.
+    - Open Graph tags, so a shared link previews with a title and description.
+    - The input placeholder is shortened: at 375px the old one wrapped inside the one-line box and was cut off.
+  - Verified locally in a headless browser:
+    - The footer text and links are correct.
+    - *Ask* stays disabled for empty or blank input and after an answer; the counter shows "850 / 1000".
+    - The reading-line animation runs while searching, and the notes' delays are 0.12s–0.30s (0s under reduced motion).
+    - At 375px the body fits the viewport, the ask box and footer are visible, and nothing overflows horizontally.
+    - The full regression passed (citations, follow-ups, refusal, multiple documents, summary, scroll position) with 0 console errors. 56 tests pass.
