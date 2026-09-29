@@ -430,3 +430,10 @@ date, what changed, why, and what (if anything) failed._
     - Toasts for copy/export/remove/theme, placed under the top bar after the first screenshots showed them covering the footer.
     - A jump-to-latest button, smooth scrolling and a breathing loading skeleton.
   - **Tests.** 116 pass: failover order, cooldown skip, bad key, timeout, stream failover, no restart after the first token, status without secrets, the route event, and Google first by default.
+- **2026-09-29** — Deployed v2.2.0 to EC2.
+  - **Keys.** The provider keys were merged into the server's `.env` over the SSH connection's stdin (never as command arguments or through git). The file is `chmod 600`, with the previous copy kept (also 600) as `.env.bak-v2.1.0`. Locally they live only in the gitignored `.env`, and a secret-pattern scan of every commit's diff found no key.
+  - **Container.** `ai-document-assistant:v2.2.0` (`v2.1.0` kept for rollback) reports **healthy** via the new `HEALTHCHECK`. The old font files are removed from the image.
+  - **Live checks.**
+    - `/api/status` lists Groq, OpenRouter, NVIDIA, Hugging Face and Groq 20b, all ready, with no key material in the response.
+    - Headless Chrome against the live URL: with Groq's daily quota used up, the question was answered by **OpenRouter (Nemotron 3 Super)** through failover, and the answer is labelled so.
+    - The footer shows 4 green provider pills; the theme toggle and jump-to-latest work; the phone layout is fine; 0 console errors or CSP violations.
