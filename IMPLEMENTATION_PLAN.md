@@ -83,7 +83,7 @@ optional enhancements (Phase 10) only happen if 0–9 are solid.
 - Run the same question set under **two** chunking/retrieval configurations (e.g. small chunks/low top-k vs. larger chunks/higher top-k); record observed differences in `DECISIONS.md`.
 - Also exercise: invalid/empty PDF, missing API key.
 - **Depends on**: Phase 7 (needs the full app running).
-- _Status:_ done (see `DECISIONS.md`, Real-World Validation); plus a committed `pytest` suite (45 tests) and CI.
+- _Status:_ done (see `DECISIONS.md`, Real-World Validation); plus a committed `pytest` suite (48 tests) and CI.
 
 ## Phase 9 — README + Final Review
 - Write `README.md`: overview, architecture summary, setup, how to run, usage, testing/results, limitations.
@@ -112,6 +112,6 @@ Added later, each with its reasoning in `DECISIONS.md`:
   and question size limits.
 - Clickable page citations and margin-note sources ("Annotated Margin",
   `DESIGN.md`), light/dark themes, keyboard-accessible upload.
-- `pytest` suite (45 tests) with GitHub Actions CI, CodeQL and Dependabot.
+- `pytest` suite (48 tests) with GitHub Actions CI, CodeQL and Dependabot.
 - Docker image (CPU-only PyTorch) deployed to AWS EC2 behind Nginx with
   HTTPS.

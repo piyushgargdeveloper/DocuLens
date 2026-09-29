@@ -22,6 +22,9 @@ For context before reporting an issue, see the "Security notes" section of
 - The session cookie is `httponly`, `samesite=lax`, and `Secure` over HTTPS.
 - Error responses never include exception text or stack traces; details are
   logged on the server only.
+- Uploaded PDFs are never written to disk; their extracted text lives only
+  in memory and is deleted on removal or after 2 hours of inactivity (a
+  background task enforces this every 5 minutes).
 - Resources are bounded: 25MB uploads (never read past the limit), 1000-
   character questions, 5 documents per session, 50 sessions, 2-hour expiry.
 - Document and model text is inserted into the page with `textContent` /

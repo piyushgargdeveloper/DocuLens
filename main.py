@@ -7,8 +7,10 @@ file touches retrieval, chunking, embedding, or prompt logic -- it only adapts
 pipeline.ingest()/answer()/summarize() to HTTP and holds per-session state.
 """
 
+import asyncio
 import secrets
 import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,8 +33,32 @@ MAX_DOCS_PER_SESSION = 5
 MAX_SESSIONS = 50  # oldest-idle session is evicted beyond this, bounding server memory
 MAX_STORED_TURNS = 10  # conversation turns kept per session (only the last few reach the LLM)
 SESSION_TTL_SECONDS = 2 * 60 * 60  # 2 hours of inactivity
+CLEANUP_INTERVAL_SECONDS = 5 * 60
 
-app = FastAPI(title="AI Document Assistant")
+
+async def _sweep_expired_sessions() -> None:
+    """Delete expired sessions on a timer, not only when a request arrives.
+
+    Uploaded PDFs are never written to disk; their extracted text and
+    embeddings live only in `_sessions`. Pruning used to run only at the start
+    of a request, so with no traffic an expired session's document text could
+    stay in memory indefinitely. This makes the 2-hour limit a real deadline.
+    """
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
+        _prune_sessions()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    sweeper = asyncio.create_task(_sweep_expired_sessions())
+    try:
+        yield
+    finally:
+        sweeper.cancel()
+
+
+app = FastAPI(title="AI Document Assistant", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -150,6 +176,11 @@ async def ingest(request: Request, file: UploadFile = File(...)):
     # Read at most one byte past the limit, so an oversized upload is never
     # held in memory in full.
     pdf_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
+    # Uploads over 1MB are spooled by Starlette to an anonymous temporary
+    # file; close it now rather than at the end of the request, so no copy
+    # of the PDF outlives this read. From here on only the extracted text is
+    # kept, in memory, until the document is removed or the session expires.
+    await file.close()
     if len(pdf_bytes) > MAX_UPLOAD_BYTES:
         return _error("File is too large. The limit is 25MB.", 413)
 

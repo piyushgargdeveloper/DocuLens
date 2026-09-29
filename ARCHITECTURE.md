@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v1.4.1._
+_Current as of v1.4.2._
 
 ## Overview
 
@@ -34,8 +34,12 @@ documented chunking evaluation stays valid.
    `samesite=lax` cookie (`Secure` when the request arrived over HTTPS,
    directly or via Nginx's `X-Forwarded-Proto`). A `Session` holds up to 5
    documents (each its own `IndexState`) and the last 10 Q/A turns. Sessions
-   expire after 2 hours idle, and at most 50 are kept (oldest-idle evicted),
-   so memory is bounded. Ingestion and LLM calls run in a worker thread
+   expire after 2 hours idle — enforced by a background task (started in the
+   app's `lifespan`) every 5 minutes, not only when a request arrives — and at
+   most 50 are kept (oldest-idle evicted), so memory is bounded. Uploaded PDFs
+   are never written to disk: the upload's temporary spool file is closed
+   right after reading, and only extracted text and embeddings are kept, in
+   memory, for the life of the session. Ingestion and LLM calls run in a worker thread
    (`run_in_threadpool`) so one slow request never blocks the event loop.
    Errors use real status codes (400/404/413/422/502/503/500) with a fixed,
    generic message; exception text is logged server-side only.

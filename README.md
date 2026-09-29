@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.4.1
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.4.2
 
 ## What it does
 
@@ -252,6 +252,13 @@ LLM, so a few things are handled deliberately:
 - **Errors**: clients get a fixed message and a proper status code;
   exception details are logged on the server only (CodeQL
   `py/stack-trace-exposure`).
+- **Uploaded PDFs are not stored**: nothing is written to disk by the
+  app. Starlette's temporary spool file for a large upload is closed as soon
+  as the bytes are read; only the extracted text and embeddings are kept, in
+  memory, and they are deleted when the user removes the document or after
+  2 hours of inactivity. A background task enforces that deadline every 5
+  minutes even when no one is using the site, and a server restart clears
+  everything. The upload screen tells users this.
 - **Resource limits**: uploads are capped at 25MB (never read past the
   limit), questions at 1000 characters, 5 documents per session, 50
   sessions per server, and sessions expire after 2 hours of inactivity.
