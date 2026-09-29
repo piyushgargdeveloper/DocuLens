@@ -16,10 +16,11 @@ What you'd like to see happen.
 Any other approaches you thought about, and why you prefer this one.
 
 **Does this relate to an existing idea?**
-`README.md` already lists some possible future directions (multi-document
-support, real conversation history, document summaries, smarter chunking,
-reranking). If your request is one of these, say so — otherwise describe how
-it's different.
+`README.md` lists possible future directions (LLM query rewriting for
+follow-ups, full-document summaries, smarter chunking, reranking, a shared
+session store). Multiple documents, follow-up questions and summaries
+already exist. If your request is one of the listed ideas, say so —
+otherwise describe how it's different.
 
 **Additional context**
 Anything else relevant (mockups, links, example use case).

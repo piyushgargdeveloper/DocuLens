@@ -1,16 +1,18 @@
 # AI Document Assistant
 
 A Retrieval-Augmented Generation (RAG) tool that answers questions about
-any PDF you upload — grounded strictly in that document's content, with
-the exact source page shown for every answer.
+the PDFs you upload — grounded strictly in their content, with the exact
+source page and passage shown beside every answer.
+
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v1.4.1
 
 ## What it does
 
-Upload a PDF, ask a question in plain language, and get back an answer
-built only from the parts of the document that are actually relevant —
-along with the page number(s) and passage text the answer came from. If
-the document doesn't contain the answer, the assistant says so instead
-of guessing.
+Upload one or more PDFs, ask a question in plain language, and get back
+an answer built only from the passages that are actually relevant — with
+the document, page number and passage text each answer came from. If the
+documents don't contain the answer, the assistant says so instead of
+guessing.
 
 ## Problem it solves
 
@@ -45,9 +47,6 @@ those passages) so answers stay traceable back to the source text.
 - Answers are grounded: the LLM is instructed to answer only from
   retrieved passages, and to say so explicitly when they don't contain
   the answer.
-- Every answer carries its own sources panel showing the supporting page
-  number(s), similarity scores, and passage text, so you can verify it
-  against the original document.
 - Retrieved document text is treated as untrusted data: it is fenced in
   the prompt and the model is instructed never to follow instructions
   embedded in a document (see [Security](#security-notes) below).
@@ -59,9 +58,11 @@ those passages) so answers stay traceable back to the source text.
 A small FastAPI backend wraps an explicit, individually-inspectable RAG
 pipeline (no LangChain/LangGraph — see `DECISIONS.md` for why) and serves
 a static frontend from the same origin, so no CORS setup is needed. The
-pipeline itself — extraction, chunking, embedding, retrieval, prompting —
-is unchanged from the project's original design; only the UI layer
-changed (see `DECISIONS.md` for that migration and why).
+core stages — extraction, chunking, embedding, retrieval, prompting — are
+the original design; multi-document retrieval, follow-up context and
+summaries were added on top without changing the single-document path
+(tests enforce this, so the evaluation below still holds). Full detail is
+in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ```
 PDF upload (browser)
@@ -73,19 +74,20 @@ FastAPI (main.py)
 [(page_num, page_text), ...]
    │  chunker.py (fixed size / overlap)
    ▼
-[{text, page}, ...]  ──────────────► sentence-transformers ──► chunk embeddings
+[{text, page, doc}, ...]  ─────────► sentence-transformers ──► chunk embeddings
    │                                                                  │
    │                                                                  ▼
-   │                                                         FAISS index (in memory,
-   │                                                         held server-side per session)
+   │                                                  one FAISS index per document
+   │                                                  (in memory, up to 5 per session)
    │
 question (browser)
    │  POST /api/ask
    ▼
-FastAPI ──► embed question ──► FAISS similarity search ──► top-k {text, page, score}
+FastAPI ──► embed question (+ previous question for follow-ups)
+        ──► search every document, merge ──► top-k {text, page, doc, score}
                                                                   │
                                                                   ▼
-                                     prompt = system instruction + passages + question
+                  prompt = system rules + fenced passages + last 3 turns + question
                                                                   │
                                                                   ▼
                                          LLM API call (any OpenAI-compatible endpoint)
@@ -105,6 +107,7 @@ FastAPI ──► embed question ──► FAISS similarity search ──► top
 | Backend / API | `main.py` | FastAPI, in-memory per-session state |
 | Frontend | `static/index.html`, `static/style.css`, `static/app.js` | vanilla HTML/CSS/JS, no framework |
 | Evaluation | `evaluate.py` | reproducible two-config comparison script |
+| Design | `DESIGN.md` | the frontend's written design direction |
 
 Full design rationale is in `PROJECT_SPEC.md`, `ARCHITECTURE.md`, and
 `IMPLEMENTATION_PLAN.md`. Every real engineering decision, failure, and
@@ -127,19 +130,22 @@ test result encountered while building this is logged chronologically in
 
 ## How the pipeline works
 
-1. **Ingestion (once per uploaded document):** extract text per page,
-   split each page's text into overlapping chunks (keeping track of
-   which page each chunk came from), embed all chunks, and build a FAISS
-   index over the embeddings. The resulting index is held in server
-   memory, keyed by a session cookie set on the response.
-2. **Query (once per question):** embed the question with the same
-   model, retrieve the most similar chunks from the index, and build a
-   prompt containing only those chunks (each labeled with its page
-   number) plus an instruction to answer strictly from them — or say the
-   document doesn't contain the answer.
-3. **Response:** the LLM's answer is returned as JSON together with the
-   retrieved passages and their page numbers, and the frontend renders
-   both, so the answer can always be checked against the source.
+1. **Ingestion (once per uploaded PDF):** extract text per page, split
+   each page into overlapping chunks tagged with their page and document,
+   embed them, and build that document's FAISS index. It is held in server
+   memory in the browser's session (identified by a cookie), alongside up
+   to four other documents.
+2. **Query (once per question):** embed the question with the same model,
+   search every loaded document and keep the overall best passages. For a
+   follow-up, the previous question is searched too, so "it" resolves.
+   The prompt contains only those passages (labeled with document and
+   page), the last few turns for context, and an instruction to answer
+   strictly from the passages — or say the documents don't contain the
+   answer.
+3. **Response:** the answer is returned with the retrieved passages; the
+   frontend shows them as margin notes and turns page references in the
+   answer into clickable tabs, so every claim can be checked against the
+   source.
 
 ## Installation
 
@@ -239,12 +245,16 @@ LLM, so a few things are handled deliberately:
 - **Secrets**: the API key is read only from the environment
   (`LLM_API_KEY`). It is never logged, rendered, or committed; `.env` is
   gitignored and only `.env.example` (placeholders) is tracked.
-- **Session cookie**: the per-document session ID is an `httponly`,
-  `samesite=lax` cookie set by the server — not readable from JavaScript,
-  which limits exposure to XSS-based token theft.
-- **Resource limits**: uploads are capped at 25MB and questions at 1000
-  characters, since each upload is held in memory and embedded. Sessions
-  expire from server memory after 2 hours of inactivity.
+- **Session cookie**: the session ID is an `httponly`, `samesite=lax`
+  cookie, marked `Secure` whenever the site is served over HTTPS — not
+  readable from JavaScript, which limits exposure to XSS-based token
+  theft.
+- **Errors**: clients get a fixed message and a proper status code;
+  exception details are logged on the server only (CodeQL
+  `py/stack-trace-exposure`).
+- **Resource limits**: uploads are capped at 25MB (never read past the
+  limit), questions at 1000 characters, 5 documents per session, 50
+  sessions per server, and sessions expire after 2 hours of inactivity.
 - **Rendering**: all dynamic content is inserted via `textContent` (see
   above), never raw HTML or markdown interpretation.
 
@@ -268,13 +278,17 @@ Tests that call a real LLM API skip automatically if `LLM_API_KEY` isn't
 set — a GitHub Actions workflow runs the rest on every push/PR (see
 `CONTRIBUTING.md`).
 
-### Manual end-to-end / UI testing
-The frontend itself has no automated coverage. It has been manually
-verified in a real headless browser, at both desktop and mobile (375px)
-viewport widths: upload → ingest → ask → answer with correct source page
-→ expand sources → follow-up question → unanswerable question correctly
-refused → remove document → re-upload, with zero browser console errors
-and no horizontal overflow at mobile width.
+### Browser testing
+The frontend has no unit tests; every release is instead driven end to
+end in a real headless browser against both a local server and the live
+site, at desktop and 375px mobile widths and in light and dark themes:
+upload → answer with a page tab → clicking the tab highlights the right
+margin note → follow-up question → unanswerable question refused →
+second PDF → cross-document answer → summary → page reload restores the
+session → remove one / remove all. Each release is shipped only with zero
+console errors, zero failed requests and no horizontal overflow on
+mobile. Keyboard access (Tab to the upload area, Enter to open the file
+picker) is checked too.
 
 ### Real-world validation
 A minimal synthetic PDF is bundled (`sample_docs/sample.pdf`) purely as
@@ -323,7 +337,9 @@ real load (a 15-page PDF, sentence-transformers model loaded, an actual
 LLM call) peaked at 685MiB — comfortable headroom on the 2GiB instance.
 
 Setup used: Docker (installed via the official Docker apt repository),
-the repo's own `Dockerfile`, running as `docker run --restart
+the repo's own `Dockerfile` for the base image (updates since v1.2.0 add
+a thin code layer on top of it, because the instance's small disk can't
+hold a full parallel rebuild — see `DECISIONS.md`), running as `docker run --restart
 unless-stopped` (survives reboots automatically), with Nginx as a
 reverse proxy in front (`client_max_body_size 25m` to match the app's
 upload limit, generous proxy timeouts for LLM calls) forwarding to the

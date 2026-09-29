@@ -49,10 +49,11 @@ making changes rather than merging responsibilities:
 | `embedder.py` | Text -> vector embeddings |
 | `vector_store.py` | FAISS similarity search |
 | `llm_client.py` | LLM API call + grounding prompt |
-| `pipeline.py` | Orchestrates the above (ingest / answer) |
-| `main.py` | FastAPI backend (HTTP API, session handling) only |
+| `pipeline.py` | Orchestrates the above (ingest / retrieve / answer / summarize) |
+| `main.py` | FastAPI backend (HTTP API, sessions, limits, error shaping) only |
 | `static/` | Frontend — plain HTML/CSS/JS, no framework, no build step |
 | `evaluate.py` | Reproducible chunking/retrieval comparison |
+| `DESIGN.md` | The frontend's design direction — read before changing `static/` |
 
 Keep the pipeline (`pdf_loader.py` through `pipeline.py`) free of any web
 framework concerns — `main.py` is the only file that should import
@@ -88,11 +89,16 @@ What's **not** automated, and still needs manual verification before opening
 a PR:
 
 - Run `uvicorn main:app --reload`, open `http://localhost:8000`, upload
-  `sample_docs/sample.pdf`, and confirm the full flow works: upload,
-  indexing, an answerable question with correct source citations, a
-  clearly unanswerable question, and remove/re-upload. Check it at a
-  mobile viewport width too if you touched `static/`. The frontend itself
-  has no automated test coverage.
+  `sample_docs/sample.pdf`, and confirm the full flow works: an answerable
+  question whose yellow page tab highlights the right margin note, a
+  follow-up question, a clearly unanswerable question (refused), adding a
+  second PDF, a summary, reloading the page (session restored), and
+  removing one / all documents. If you touched `static/`, also check a
+  375px-wide viewport, dark mode, and keyboard access (Tab reaches the
+  upload area). The frontend has no automated test coverage.
+- If you changed anything in `static/`, bump the `?v=` query on the
+  `style.css` and `app.js` URLs in `static/index.html`, so browsers that
+  cached the previous release fetch the new files.
 - If your change touches retrieval, chunking, or the prompt, run
   `evaluate.py` against a document and question set and check the comparison
   report for regressions:

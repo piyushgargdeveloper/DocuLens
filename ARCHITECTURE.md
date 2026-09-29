@@ -1,178 +1,188 @@
 # Architecture — AI Document Assistant
 
+_Current as of v1.4.1._
+
 ## Overview
 
-A small FastAPI backend implementing a classic Retrieval-Augmented
-Generation (RAG) pipeline, built from explicit, individually-inspectable
-steps rather than a framework's black-box chain. This is a deliberate
-design choice (see `DECISIONS.md`): each pipeline stage is a plain
-function you can point to and explain, rather than logic hidden behind a
-framework's abstraction. The UI layer was originally built with
-Streamlit and later replaced with a minimal FastAPI + static-frontend
-setup for a better, mobile-responsive user experience (see `DECISIONS.md`
-for that migration) — the pipeline stages below (2–7) were untouched by
-that change.
+A small FastAPI backend implementing a Retrieval-Augmented Generation (RAG)
+pipeline from explicit, individually-inspectable steps rather than a
+framework's black-box chain (see `DECISIONS.md` decision #1). Each pipeline
+stage is a plain function you can point to and explain. The same process
+serves a static HTML/CSS/JS frontend, so API and page share one origin and
+no CORS configuration exists anywhere.
+
+The UI was originally Streamlit, replaced by FastAPI + a static frontend
+for mobile usability; the frontend has since been redesigned twice (v1.3.0,
+v1.4.0 — see `DESIGN.md`). None of those changes touched the retrieval or
+prompting code, and the single-document path is guarded by tests so the
+documented chunking evaluation stays valid.
 
 ## Components
 
 1. **Backend / API** (`main.py`, FastAPI)
-   Exposes `POST /api/ingest`, `POST /api/ask`, `POST /api/summary`,
-   `POST /api/remove`, `GET /api/session`, and serves the static frontend
-   from the same origin (no CORS needed). Holds a `Session` per browser (up
-   to 5 documents, each its own `IndexState`, plus the last 10 Q/A turns) in
-   an in-memory dict, keyed by an `httponly` cookie; sessions expire after 2
-   hours of inactivity and at most 50 are kept. Pipeline calls (embedding,
-   LLM) run in a worker thread so one slow request doesn't block others.
-   The last 3 turns are passed to the pipeline so follow-up questions
-   resolve; answers must still come from retrieved passages.
+
+   | Endpoint | Does |
+   |---|---|
+   | `POST /api/ingest` | Upload a PDF (≤25MB). Adds it to the session (creating one and setting the cookie if needed), max 5 documents. |
+   | `POST /api/ask` | `{question}` → answer + sources, searched across all loaded documents, with the last 3 turns as context. |
+   | `POST /api/summary` | `{id}` → a short summary of one document. |
+   | `POST /api/remove` | `{id}` removes one document; no id (or removing the last one) clears the session and cookie. |
+   | `GET /api/session` | The session's documents and conversation, so a page reload restores the UI. |
+   | `GET /`, `/static/*` | The frontend, sent with `Cache-Control: no-cache` so browsers never run a stale script after a deploy. |
+
+   State is an in-memory `dict[str, Session]` keyed by an `httponly`,
+   `samesite=lax` cookie (`Secure` when the request arrived over HTTPS,
+   directly or via Nginx's `X-Forwarded-Proto`). A `Session` holds up to 5
+   documents (each its own `IndexState`) and the last 10 Q/A turns. Sessions
+   expire after 2 hours idle, and at most 50 are kept (oldest-idle evicted),
+   so memory is bounded. Ingestion and LLM calls run in a worker thread
+   (`run_in_threadpool`) so one slow request never blocks the event loop.
+   Errors use real status codes (400/404/413/422/502/503/500) with a fixed,
+   generic message; exception text is logged server-side only.
 
 2. **Frontend** (`static/index.html`, `static/style.css`, `static/app.js`)
-   A single-page, mobile-first, vanilla HTML/CSS/JS UI: upload, document
-   status bar, chat message list, per-answer sources disclosure. No
-   framework, no build step. All dynamic content is inserted with
-   `textContent`, never `innerHTML`, so document/model text can't inject
-   markup.
+   Vanilla, no framework or build step. The design ("Annotated Margin",
+   `DESIGN.md`): answers are set in a reading serif with their retrieved
+   passages as margin notes beside them on wide screens (a CSS container
+   query on the conversation pane) and folded under them on narrow ones.
+   Page references the model writes (`【file, Page 3】`, `(Page 3)`,
+   `[Page 3]`, …) are parsed into yellow "p. 3" tabs; clicking one
+   highlights the matching passage. Every dynamic string is inserted with
+   `textContent` or text nodes, never `innerHTML`. All requests go through
+   one `api()` helper that turns network failures and non-JSON proxy error
+   pages into readable messages instead of a stuck UI.
 
 3. **Document loader** (`pdf_loader.py`)
-   Uses PyMuPDF (`fitz`) to open the PDF and extract text page by page.
-   Output: a list of `(page_number, page_text)` pairs. Handles empty/invalid
-   PDFs by returning an empty list (caught upstream as an error state).
+   PyMuPDF extracts text page by page into `[(page_number, text), ...]`,
+   skipping empty pages. An invalid, encrypted or image-only PDF yields an
+   empty list rather than an exception.
 
 4. **Chunker** (`chunker.py`)
-   Splits each page's text into overlapping character-window chunks
-   (fixed `chunk_size`, `chunk_overlap` — see "Chunking Configuration"
-   below for why these aren't user-facing). Each chunk keeps a
-   reference to its source page number. Output: list of
-   `{"text": ..., "page": ...}` dicts.
+   A character sliding window per page (`chunk_size`, `chunk_overlap`).
+   Every chunk keeps its page number: `{"text", "page"}`.
 
 5. **Embedder** (`embedder.py`)
-   Wraps a `sentence-transformers` model (`all-MiniLM-L6-v2`) to turn chunk
-   text and questions into vectors. The model is held in a module-level
-   singleton so it loads once per process and is reused across requests —
-   deliberately plain Python (not framework-specific caching), so the
-   module stays usable from `main.py`, `evaluate.py`, and the test suite
-   alike.
+   `sentence-transformers/all-MiniLM-L6-v2`, L2-normalized 384-dim vectors.
+   The model is a module-level singleton (loaded once per process), plain
+   Python so it works the same from `main.py`, `evaluate.py` and tests.
 
-6. **Vector store / retriever** (`vector_store.py`)
-   Wraps a FAISS `IndexFlatIP` (cosine similarity via normalized vectors).
-   Builds the index from chunk embeddings; given a query embedding, returns
-   the top-k most similar chunks with their page numbers and similarity
-   scores.
+6. **Vector store** (`vector_store.py`)
+   One FAISS `IndexFlatIP` per document; on normalized vectors inner product
+   equals cosine similarity. `search()` returns `{text, page, score}` plus
+   any extra chunk keys (e.g. `doc`).
 
 7. **LLM client** (`llm_client.py`)
-   Thin wrapper around one LLM API, selected and configured entirely via
-   environment variables (`LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`) so the
-   provider can be swapped without touching code. Builds a strict grounding
-   prompt: system instruction + retrieved passages + question, with an
-   explicit instruction to say the document doesn't contain the answer if
-   the passages don't support one. Retrieved passages are fenced in
-   delimiters and declared untrusted, so instructions embedded in a
-   document are treated as quoted content rather than obeyed. Rate-limit
-   (HTTP 429) responses are retried with backoff that honors `Retry-After`,
-   bounded so a long back-off surfaces as an error instead of hanging.
+   One OpenAI-compatible chat-completions call over `requests`, configured
+   only by `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`. Builds the grounding
+   prompt (below), retries HTTP 429 honoring `Retry-After` (both numeric and
+   HTTP-date forms, capped at 30s), and wraps every failure in
+   `LLMConfigError` / `LLMRequestError`. Also has a separate summary prompt.
 
 8. **Orchestration** (`pipeline.py`)
-   Ties the above together: `load → chunk → embed → index` at
-   ingestion time, and `embed_query → retrieve → build_prompt → call_llm →
-   return(answer, sources)` per question.
+   `ingest()`, `retrieve()`, `answer()` and `summarize()` — the only place
+   the stages are wired together.
 
 ## Data Flow
 
 ```
-PDF file
-   │  PyMuPDF
-   ▼
-[(page_num, page_text), ...]
-   │  chunker (size, overlap)
-   ▼
-[{text, page}, ...]  ──────────────► sentence-transformers ──► chunk embeddings
-   │                                                                  │
-   │                                                                  ▼
-   │                                                         FAISS index (in memory)
-   │
-User question
-   │  sentence-transformers
-   ▼
-question embedding ──► FAISS similarity search ──► top-k {text, page, score}
-                                                          │
-                                                          ▼
-                                     prompt = system + top-k passages + question
-                                                          │
-                                                          ▼
-                                                     LLM API call
-                                                          │
-                                                          ▼
-                                        answer text  +  source list (page, passage)
-                                                          │
-                                                          ▼
-                                      JSON response ──► app.js renders both
+PDF upload ──► POST /api/ingest
+                 │ pdf_loader: [(page, text), ...]
+                 │ chunker:    [{text, page, doc}, ...]
+                 │ embedder:   384-dim vectors
+                 ▼
+               IndexState (FAISS index + chunks) ──► session.docs[doc_id]
+
+question ──► POST /api/ask
+               │ queries = [question] (+ "previous question + question" for a follow-up)
+               │ for each document × each query: FAISS top-k
+               │ merge, keep best score per passage, overall top-k
+               ▼
+             prompt = system rules + fenced passages "[file.pdf, Page N] ..."
+                      + last 3 turns (if any) + question
+               │ LLM API
+               ▼
+             {answer, sources} ──► app.js: answer text with page tabs,
+                                   sources as margin notes
 ```
 
 ## RAG Pipeline (detail)
 
-1. **Ingestion (once per uploaded document)**
-   - Extract text per page (PyMuPDF).
-   - Chunk each page's text with overlap so answers spanning a chunk
-     boundary aren't lost.
-   - Embed all chunks; build a FAISS index; keep a parallel Python list
-     mapping index position → `{text, page}` for lookup after search.
+**Ingestion (once per uploaded PDF).** Extract per page, chunk with overlap
+so an answer spanning a boundary isn't lost, tag each chunk with the
+document's filename, embed, and build that document's FAISS index. Two
+uploads with the same filename are named `a.pdf` and `a.pdf (2)` so sources
+stay unambiguous.
 
-2. **Query (once per question)**
-   - Embed the question with the same model (required — mismatched models
-     would produce meaningless similarity scores).
-   - Retrieve top-k chunks by cosine similarity.
-   - Construct a grounding prompt that includes the retrieved passages
-     (each labeled with its page number) and instructs the LLM to answer
-     **only** from them, and to say so explicitly if they don't contain the
-     answer.
-   - Call the LLM; return the answer text alongside the source chunks used,
-     so the UI can display page/passage provenance independent of whether
-     the LLM cites them correctly.
+**Retrieval (per question).** The question is embedded with the same model.
+Each loaded document's index is searched and the hits are merged, keeping
+the overall top-k by score (`DEFAULT_TOP_K = 4`). For a follow-up, retrieval
+also runs on "previous question + current question", so "how many moons
+does it have?" still finds the passage about the planet named one turn
+earlier; a passage found by both queries keeps its higher score. With one
+document and no history this reduces exactly to a plain `store.search()`,
+which a test enforces.
+
+**Generation.** The system prompt allows answers only from the passages,
+defines one exact refusal string ("I could not find the answer to this
+question in the document."), and declares the passages untrusted content —
+they are fenced between `<<<BEGIN PASSAGES>>>` / `<<<END PASSAGES>>>`, so an
+instruction inside a PDF is reported, not obeyed (see
+`tests/test_prompt_injection.py`). When earlier turns are sent, one more
+rule is added: they may be used only to resolve references, never as a
+source of facts. Without history the prompt is byte-identical to the one the
+evaluation used.
+
+**Sources.** The retrieved passages are returned with every answer,
+independent of whether the model cites a page itself, so the user can
+always check what the answer was (or wasn't) based on.
+
+**Summary.** `summarize()` sends 10 evenly spaced chunks to a separate
+summary prompt. A full map-reduce over every chunk would cost one LLM call
+per chunk, which free-tier rate limits don't allow for longer PDFs.
 
 ## Technology Choices
 
 | Choice | Why |
 |--------|-----|
-| **FastAPI + vanilla HTML/CSS/JS** | A small, self-contained API plus a single static page is the simplest architecture that gives full control over mobile-responsive CSS — a full SPA framework (React/Vue/etc.) would mean a build step, `node_modules`, and far more moving parts than this project's single upload+chat page needs. Same origin for API and frontend means no CORS configuration either. See `DECISIONS.md` for the full comparison against staying on Streamlit and against a full SPA framework. |
-| **PyMuPDF (fitz)** | Reliable page-level text extraction, handles most real-world PDFs, fast, no external binary dependency. |
-| **sentence-transformers (`all-MiniLM-L6-v2`)** | Small (~80MB), fast on CPU, well-established baseline for semantic similarity — appropriate for a single-document tool at this scale. |
-| **FAISS (`IndexFlatIP`)** | Exact (non-approximate) search is fine at this scale (one document, low thousands of chunks at most), simple to reason about, no external service to run. |
-| **Configurable LLM API (env vars)** | NFR2 requires no hardcoded provider. A minimal `requests`-based OpenAI-compatible client is the default (works with OpenAI, Groq, or any OpenAI-compatible endpoint by changing `LLM_BASE_URL`), keeping the dependency footprint small. |
-| **No LangChain/LangGraph** | Considered but deliberately not used — see `DECISIONS.md`. A hand-rolled pipeline better demonstrates pipeline understanding and keeps the code small and readable (NFR1), which a framework's abstractions would work against at this scale. |
+| **FastAPI + vanilla HTML/CSS/JS** | The smallest setup with full control over responsive layout; a SPA framework would add a build step and `node_modules` for one page. Same origin means no CORS. |
+| **PyMuPDF** | Reliable page-level extraction, fast, no external binary. |
+| **`all-MiniLM-L6-v2`** | Small (~80MB), fast on CPU, a well-known semantic-similarity baseline. |
+| **FAISS `IndexFlatIP`, one per document** | Exact search is fine at a few documents × low thousands of chunks. Per-document indexes make removing one document a dict delete instead of re-embedding. |
+| **OpenAI-compatible client via env vars** | No hardcoded provider; works with Groq (default), OpenAI or any compatible endpoint. |
+| **No LangChain/LangGraph** | Every stage stays visible and explainable; see `DECISIONS.md` #1. |
+| **Retrieval on concatenated queries, not LLM query rewriting** | Rewriting would double LLM calls per question on a rate-limited free tier. |
 
 ## Chunking Configuration
 
-`pipeline.py` defines `DEFAULT_CHUNK_SIZE`, `DEFAULT_CHUNK_OVERLAP`, and
-`DEFAULT_TOP_K`, informed directly by the two-configuration evaluation in
-`DECISIONS.md` (the defaults sit close to the configuration that performed
-best there). The production UI does not expose these as user-facing
-controls — deliberately, to keep the interface minimal and product-like
-rather than exposing internal RAG hyperparameters to end users (that's
-"developer demo" energy, not "polished product" energy). `pipeline.ingest`
-and `pipeline.answer` still accept them as optional overrides, which is
-exactly what FR8 (comparing two configurations) needs: `evaluate.py` calls
-them directly with different values to reproduce the comparison against
-any document, without needing UI controls at all.
+`pipeline.py` defaults — `chunk_size=800`, `chunk_overlap=150`, `top_k=4` —
+come from the two-configuration evaluation in `DECISIONS.md` (small 300-char
+chunks refused 4 of 5 answerable questions and misread a table; 1000-char
+chunks answered all 5). They are not exposed in the UI; `pipeline.ingest()`
+and `pipeline.answer()` accept overrides, which `evaluate.py` uses to rerun
+the comparison against any PDF.
 
 ## Failure Handling
 
-- **Non-PDF / oversized upload**: rejected at the API boundary (`main.py`)
-  with a 400/413 and a clear message, before the pipeline is ever invoked.
-- **Invalid/empty PDF** (right type, but no extractable text): loader
-  returns no pages → API responds with `{"error": ...}`, ingestion is
-  blocked (no empty index built).
-- **Unexpected exception during ingestion or answering** (e.g. the
-  embedding model failing to load): caught generically in `main.py` so it
-  degrades to a clean error response instead of an unhandled 500.
-- **Missing API key**: LLM client raises a clear configuration error on
-  first call, caught by the API and returned as `{"error": ...}`, rendered
-  by the frontend as an error-styled chat message — not a stack trace.
-- **Rate limiting / API failure**: retried with bounded backoff, then
-  surfaced as a readable error in the conversation. `evaluate.py`
-  additionally paces its requests and records a per-question failure
-  rather than discarding a whole batch run.
-- **No relevant chunks found** (e.g. off-topic question): retrieval still
-  returns its top-k (FAISS always returns *something*), but similarity
-  scores will be low; the prompt's grounding instruction handles the
-  "answer not in document" case at the LLM level — see `DECISIONS.md` for
-  the actual evaluation of this behavior against a real document.
+| Situation | Handled in | User sees |
+|---|---|---|
+| Not a `.pdf`, or over 25MB | `main.py` (reads at most 25MB+1 bytes) | 400 / 413 with a message |
+| PDF with no extractable text | `pdf_loader` → `ingest()` returns `None` | 422 "Couldn't extract any text…" |
+| More than 5 documents | `main.py` | 400 |
+| Invalid JSON / missing question | `main.py` `_json_body()` | 400 |
+| Missing API key | `LLMConfigError` | 503, generic message |
+| LLM network/HTTP failure, 429 past the retry cap | `LLMRequestError` | 502, "try again" |
+| Anything unexpected | generic `except` in `main.py` | 500, generic message; details only in server log |
+| Proxy returns an HTML error page | `app.js` `api()` | readable error, never a frozen screen |
+| Stale cached frontend after a deploy | `Cache-Control: no-cache` + `?v=` asset URLs | always the current script |
+| Question not answerable from the document | system prompt | the exact refusal string |
+| Instructions embedded in a PDF | fenced passages + untrusted-content rule | reported as document text, not obeyed |
+
+## Deployment
+
+A single AWS EC2 `t3.small` behind Nginx (HTTPS via Let's Encrypt,
+`client_max_body_size 25m`, 120s proxy timeouts), running the container with
+`--restart unless-stopped` and the API key passed via `--env-file`. The
+`Dockerfile` installs CPU-only PyTorch to avoid ~GBs of unused CUDA wheels.
+Because sessions live in process memory, the app is designed for one
+instance; scaling out would need a shared session store. Details and the
+platform comparison are in `README.md` and `DECISIONS.md`.

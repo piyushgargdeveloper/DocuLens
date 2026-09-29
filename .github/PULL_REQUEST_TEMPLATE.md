@@ -33,5 +33,7 @@ substitute for describing what you actually ran (see `CONTRIBUTING.md`):
 - [ ] I updated relevant documentation (`README.md` / `ARCHITECTURE.md` /
       `DECISIONS.md`) if this changes user-facing behavior or a design
       decision
+- [ ] If I changed `static/`, I bumped the `?v=` asset version in
+      `static/index.html`
 - [ ] I did not commit `.env`, an API key, or any other secret
 - [ ] This PR is focused on one concern
