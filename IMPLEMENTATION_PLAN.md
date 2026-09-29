@@ -122,8 +122,8 @@ Added later, each with its reasoning in `DECISIONS.md`:
   new composer, concurrency limits, CSRF guard, `__Host-` cookie,
   `pip-audit` in CI.
 - v2.2.0: several AI providers with failover and cooldowns
-  (`providers.py`: Google AI Studio first, then Groq, OpenRouter,
-  NVIDIA, Hugging Face), "answered by"
+  (`providers.py`: Groq, OpenRouter, NVIDIA, Hugging Face; Google AI
+  Studio opt-in), "answered by"
   on every answer, `/api/status` + live provider status in a two-tier
   footer, `/api/health` + Docker HEALTHCHECK, light/dark toggle, toasts,
   jump-to-latest, smooth scrolling, loading skeleton.

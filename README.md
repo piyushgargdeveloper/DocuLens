@@ -77,9 +77,10 @@ those passages) so answers stay traceable back to the source text.
 - Retrieved document text is treated as untrusted data: it is fenced in
   the prompt and the model is instructed never to follow instructions
   embedded in a document (see [Security](#security-notes) below).
-- **Several AI providers with automatic failover** (v2.2.0): Google AI
-  Studio (Gemini, tried first), then Groq, OpenRouter, NVIDIA and Hugging
-  Face (all serving the open `gpt-oss-120b`). If one is rate limited, out of quota, down or
+- **Several AI providers with automatic failover** (v2.2.0): Groq and
+  Hugging Face (`gpt-oss-120b`), OpenRouter (Nemotron 3 Super 120B, free
+  tier) and NVIDIA (`gpt-oss-20b`); Google AI Studio (Gemini) is supported
+  as an opt-in. If one is rate limited, out of quota, down or
   misconfigured, the question goes to the next, and the failing one is
   skipped for a cooldown. Each answer shows which provider and model
   wrote it, and the footer shows which providers are available right now.
@@ -252,14 +253,14 @@ Set at least one provider key. Every key you add is another provider
 the app can fall back to:
 
 ```
-GEMINI_API_KEY=...        # https://aistudio.google.com/apikey
 GROQ_API_KEY=...          # https://console.groq.com/keys
 OPENROUTER_API_KEY=...    # https://openrouter.ai/keys
 NVIDIA_API_KEY=...        # https://build.nvidia.com
 HF_TOKEN=...              # https://huggingface.co/settings/tokens
 ```
 
-`LLM_PROVIDERS` sets the order (default `google,groq,openrouter,nvidia,huggingface`),
+`LLM_PROVIDERS` sets the order (default `groq,openrouter,nvidia,huggingface`; add `google` and
+`GEMINI_API_KEY` to use Gemini),
 `<NAME>_MODEL` / `<NAME>_BASE_URL` override a provider's defaults, and
 `LLM_FALLBACK_MODEL` (e.g. `openai/gpt-oss-20b`) adds a second Groq model
 at the end of the chain, since each Groq model has its own daily quota.
@@ -354,7 +355,7 @@ LLM, so a few things are handled deliberately:
   minutes even when no one is using the site, and a server restart clears
   everything. The upload screen tells users this.
 - **What leaves the server**: to write an answer, the question and the
-  retrieved passages are sent to one AI provider (whichever of Google AI Studio, Groq,
+  retrieved passages are sent to one AI provider (whichever of Groq,
   OpenRouter, NVIDIA or Hugging Face is configured and available); the
   upload screen and the Privacy dialog say so, and each answer names the
   provider that wrote it. Fonts are self-hosted, so the page

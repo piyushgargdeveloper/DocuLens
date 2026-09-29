@@ -2,12 +2,13 @@
 
 Google AI Studio (Gemini), Groq, OpenRouter, NVIDIA and Hugging Face all serve
 an OpenAI-compatible `/chat/completions` endpoint, so one code path reaches
-all of them. Gemini is first by default; the other four host the same
-open-weight model (`openai/gpt-oss-120b`). Free tiers are small (Groq's is 200k tokens a day per model),
+all of them. Gemini is opt-in (see DEFAULT_ORDER); the others serve open-weight models
+(gpt-oss-120b on Groq and Hugging Face, Nemotron 3 Super on OpenRouter's free
+tier, gpt-oss-20b on NVIDIA). Free tiers are small (Groq's is 200k tokens a day per model),
 so one provider alone runs out; with a chain, the app keeps answering.
 
 A provider is used only when its API key is set. `LLM_PROVIDERS` sets the
-order (default: google, groq, openrouter, nvidia, huggingface), `<NAME>_MODEL` and
+order (default: groq, openrouter, nvidia, huggingface), `<NAME>_MODEL` and
 `<NAME>_BASE_URL` override the defaults, and `LLM_FALLBACK_MODEL` adds a
 second Groq model at the end of the chain (each Groq model has its own
 quota). The older single-provider settings (`LLM_API_KEY`, `LLM_BASE_URL`,
@@ -16,8 +17,8 @@ working.
 
 A provider that fails is put on a short cooldown, so the next questions go
 straight to one that works instead of waiting on it again:
-rate limits for as long as the provider asks (capped), a bad key or unknown
-model for 15 minutes, timeouts and server errors for 30 seconds.
+rate limits for as long as the provider asks (capped), a bad key, used-up
+credits or an unknown model for 15 minutes, timeouts and server errors for 30 seconds.
 """
 
 import os
@@ -26,15 +27,18 @@ import time
 from dataclasses import dataclass, field, replace
 from urllib.parse import urlsplit
 
-DEFAULT_ORDER = "google,groq,openrouter,nvidia,huggingface"
+# Google AI Studio is supported but opt-in (add "google" to LLM_PROVIDERS):
+# in testing on 2026-09-29 its free tier was overloaded (503) or rate
+# limited on most calls, so it could not be verified against the
+# prompt-injection tests the other providers pass.
+DEFAULT_ORDER = "groq,openrouter,nvidia,huggingface"
 
 KNOWN = {
     # Google AI Studio (Gemini API) through its OpenAI-compatible endpoint.
-    # First by default: the most generous free tier of the five.
     "google": {
         "label": "Google AI Studio",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "model": "gemini-2.5-flash",
+        "model": "gemini-3.6-flash",
         "keys": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     },
     "groq": {
@@ -46,7 +50,9 @@ KNOWN = {
     "openrouter": {
         "label": "OpenRouter",
         "base_url": "https://openrouter.ai/api/v1",
-        "model": "openai/gpt-oss-120b:free",
+        # gpt-oss-120b is paid-only on OpenRouter now; this free 120B model
+        # answered as well in testing (2026-09-29).
+        "model": "nvidia/nemotron-3-super-120b-a12b:free",
         "keys": ("OPENROUTER_API_KEY",),
         # Optional attribution headers OpenRouter asks apps to send.
         "headers": (
@@ -57,7 +63,8 @@ KNOWN = {
     "nvidia": {
         "label": "NVIDIA",
         "base_url": "https://integrate.api.nvidia.com/v1",
-        "model": "openai/gpt-oss-120b",
+        # gpt-oss-120b reached end of life on NVIDIA's API on 2026-09-03.
+        "model": "openai/gpt-oss-20b",
         "keys": ("NVIDIA_API_KEY",),
     },
     "huggingface": {
@@ -70,7 +77,7 @@ KNOWN = {
 
 RATE_LIMIT_COOLDOWN_DEFAULT = 60.0
 RATE_LIMIT_COOLDOWN_MAX = 900.0
-BROKEN_COOLDOWN = 900.0  # bad key, unknown model
+BROKEN_COOLDOWN = 900.0  # bad key, no credits, unknown or retired model
 FLAKY_COOLDOWN = 30.0  # timeout, connection error, 5xx
 
 

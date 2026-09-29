@@ -84,8 +84,8 @@ documented chunking evaluation stays valid.
 7. **LLM client** (`llm_client.py`)
    OpenAI-compatible chat-completions calls over `requests`. Builds the
    grounding prompt (below) and sends it along the provider chain from
-   `providers.py` (v2.2.0): Google AI Studio (Gemini, first), Groq,
-   OpenRouter, NVIDIA and Hugging Face, in
+   `providers.py` (v2.2.0): Groq, OpenRouter, NVIDIA and Hugging Face
+   (Google AI Studio opt-in), in
    `LLM_PROVIDERS` order, each used only if its key is set, plus an optional
    second Groq model (`LLM_FALLBACK_MODEL`) at the end. A route that is rate
    limited, times out, returns 5xx/401/403/404 or an empty reply hands the
@@ -180,9 +180,9 @@ stopped answer never becomes context. The response carries
 
 **Provider failover (v2.2.0).** Free tiers are small — Groq's is 200k
 tokens a day per model — so one provider alone runs out. `providers.py`
-builds a chain of every provider with a key (Google AI Studio's Gemini
-first, then Groq, OpenRouter, NVIDIA and Hugging Face, all serving
-`gpt-oss-120b`), then Groq's
+builds a chain of every provider with a key (Groq, OpenRouter, NVIDIA and
+Hugging Face serving open models: gpt-oss-120b, Nemotron 3 Super,
+gpt-oss-20b; Google AI Studio's Gemini is opt-in), then Groq's
 `LLM_FALLBACK_MODEL`. A failing route is skipped for a cooldown so later
 questions don't wait on it; if every route is cooling down they are all
 tried anyway. The `route` SSE event and `answered_by` fields tell the UI

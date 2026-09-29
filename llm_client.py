@@ -371,8 +371,11 @@ def _record_failure(route: Route, exc: LLMRequestError) -> None:
     if isinstance(exc, LLMRateLimitError):
         wait = getattr(exc, "wait", None) or providers.RATE_LIMIT_COOLDOWN_DEFAULT
         providers.cool_down(route, min(wait, providers.RATE_LIMIT_COOLDOWN_MAX), "rate limited")
-    elif status in (401, 403, 404):
-        providers.cool_down(route, providers.BROKEN_COOLDOWN, f"HTTP {status} (key or model)")
+    elif status in (401, 402, 403, 404, 410):
+        # Bad key, credits used up (402, e.g. Hugging Face's free monthly
+        # credits), no access, unknown or retired model (410): retrying soon
+        # won't help.
+        providers.cool_down(route, providers.BROKEN_COOLDOWN, f"HTTP {status} (key, credits or model)")
     elif status is None or status >= 500:
         providers.cool_down(route, providers.FLAKY_COOLDOWN, str(exc)[:120])
     else:

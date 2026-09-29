@@ -68,7 +68,7 @@ phone it scrolls rather than running under the footer.
 a slowly pulsing amber dot while it cools down after a rate limit), and
 the links (GitHub, Releases, Report an issue, Privacy — which opens a
 dialog). Below a dashed hairline: the credit "Made with ❤️ by Piyush Garg",
-the stack in mono (FastAPI · FAISS · MiniLM · BM25 · Gemini · gpt-oss) and a
+the stack in mono (FastAPI · FAISS · MiniLM · BM25 · gpt-oss · Nemotron) and a
 version badge linking to the release notes. On a phone the brand, the stack
 and the label are dropped; providers, links and the credit remain.
 

@@ -320,7 +320,7 @@ def test_bad_key_on_one_provider_does_not_stop_the_answer(monkeypatch, three_pro
         return _reply("from nvidia")
 
     monkeypatch.setattr(llm_client.requests, "post", fake_post)
-    assert llm_client.answered_by(llm_client.ask("q?", [])) == {"provider": "NVIDIA", "model": "openai/gpt-oss-120b"}
+    assert llm_client.answered_by(llm_client.ask("q?", [])) == {"provider": "NVIDIA", "model": "openai/gpt-oss-20b"}
 
 
 def test_timeout_fails_over(monkeypatch, three_providers):
@@ -379,7 +379,7 @@ def test_status_names_providers_without_revealing_keys(monkeypatch, three_provid
     assert "k-" not in repr(status) and "k-" not in repr(providers.routes())
 
 
-def test_google_ai_studio_is_first_by_default(monkeypatch):
+def test_google_ai_studio_is_opt_in(monkeypatch):
     import providers
 
     monkeypatch.delenv("LLM_PROVIDERS", raising=False)
@@ -388,6 +388,21 @@ def test_google_ai_studio_is_first_by_default(monkeypatch):
     monkeypatch.delenv("LLM_FALLBACK_MODEL", raising=False)
     monkeypatch.setenv("LLM_API_KEY", "k-groq")
     monkeypatch.setenv("GEMINI_API_KEY", "k-gemini")
+    assert [r.label for r in providers.routes()] == ["Groq"]
+    monkeypatch.setenv("LLM_PROVIDERS", "google,groq")
     chain = providers.routes()
     assert [r.label for r in chain] == ["Google AI Studio", "Groq"]
     assert chain[0].base_url.endswith("/v1beta/openai")
+
+
+@pytest.mark.parametrize("status", [402, 410])
+def test_no_credits_or_retired_model_sidelines_the_provider(monkeypatch, three_providers, status):
+    import llm_client
+    import providers
+
+    def fake_post(url, json, headers, timeout, stream=False):
+        return _FakeResponse(status) if "groq" in url else _reply("ok")
+
+    monkeypatch.setattr(llm_client.requests, "post", fake_post)
+    llm_client.ask("q?", [])
+    assert [s["state"] for s in providers.status()][0] == "cooling"
