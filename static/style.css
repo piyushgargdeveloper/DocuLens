@@ -2067,14 +2067,17 @@ body.busy .follow-up {
     max-width: 88%;
   }
 
-  /* Two tidy rows: the credit (with the version) on top, the links below.
-     The live provider pills are a desktop nicety and are dropped here. */
+  /* Credit on the left with the version pill balanced to its right, then the
+     links centred on their own row -- so the version pill never crowds the
+     text links. The live provider pills are a desktop nicety, dropped here. */
   .site-footer {
+    position: relative;
     flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-    padding: 9px 16px calc(9px + env(safe-area-inset-bottom));
+    align-items: flex-start;
+    gap: 8px;
+    padding: 11px 16px calc(11px + env(safe-area-inset-bottom));
     font-size: var(--text-xs);
+    text-align: left;
   }
 
   .footer-providers {
@@ -2083,6 +2086,7 @@ body.busy .follow-up {
 
   .footer-credit {
     display: block;
+    max-width: calc(100% - 78px); /* clear of the version pill on the right */
   }
 
   .footer-links {
@@ -2090,17 +2094,22 @@ body.busy .follow-up {
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-start;
-    gap: 1px;
-    margin: 0 -6px;
+    gap: 0 2px;
+    margin: 0 -7px;
   }
 
   .footer-links a:not(.version-badge),
   .footer-link-button {
-    padding: 3px 6px;
+    padding: 3px 7px;
   }
 
+  /* The version pill sits at the top-right, aligned with the credit line,
+     out of the links flow so the links stay evenly spaced. */
   .version-badge {
-    margin-left: 0;
+    position: absolute;
+    top: 11px;
+    right: 16px;
+    margin: 0;
   }
 
   .answered-by {
