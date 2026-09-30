@@ -25,6 +25,7 @@ from fastapi.concurrency import iterate_in_threadpool, run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+import document_loader
 import pipeline
 import providers
 from llm_client import LLMConfigError, LLMRequestError, answered_by
@@ -35,7 +36,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The release version. static/index.html repeats it (asset ?v= query, footer,
 # release link) and tests/test_api.py fails if the two ever disagree.
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.5.0"
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
@@ -386,8 +387,8 @@ async def ingest(request: Request, file: UploadFile = File(...)):
         return limited
 
     filename = _clean_filename(file.filename)
-    if not filename.lower().endswith(".pdf"):
-        return _error("Please upload a PDF file.", 400)
+    if not document_loader.is_supported(filename):
+        return _error("Please upload a PDF, Word (.docx), text or Markdown file.", 400)
 
     session = _get_session(request)
     if session is not None and len(session.docs) >= MAX_DOCS_PER_SESSION:
@@ -398,15 +399,17 @@ async def ingest(request: Request, file: UploadFile = File(...)):
     pdf_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
     # Uploads over 1MB are spooled by Starlette to an anonymous temporary
     # file; close it now rather than at the end of the request, so no copy
-    # of the PDF outlives this read. From here on only the extracted text is
+    # of the file outlives this read. From here on only the extracted text is
     # kept, in memory, until the document is removed or the session expires.
     await file.close()
     if len(pdf_bytes) > MAX_UPLOAD_BYTES:
         return _error("File is too large. The limit is 25MB.", 413)
-    # The extension is only a claim; a PDF starts with "%PDF-" within its
-    # first 1024 bytes (the spec allows leading junk).
-    if b"%PDF-" not in pdf_bytes[:1024]:
-        return _error("That file isn't a PDF. Please upload a PDF file.", 400)
+    # The extension is only a claim; verify a PDF really starts with "%PDF-"
+    # within its first 1024 bytes (the spec allows leading junk). Text, Markdown
+    # and docx have no single reliable magic byte, so they are validated by
+    # whether any text can actually be extracted (below).
+    if filename.lower().endswith(".pdf") and b"%PDF-" not in pdf_bytes[:1024]:
+        return _error("That file isn't a PDF. Please upload a valid PDF file.", 400)
 
     name = _unique_name(session, filename) if session else filename
     if not await _take_slot(_ingest_slots):
@@ -432,9 +435,8 @@ async def ingest(request: Request, file: UploadFile = File(...)):
 
     if index_state is None:
         return _error(
-            "Couldn't read any text from this PDF. It may be empty, a scan OCR "
-            "couldn't make out (e.g. handwriting or a low-quality image), "
-            "password-protected, or corrupted.",
+            "Couldn't read any text from this file. It may be empty, a scan OCR "
+            "couldn't make out, password-protected, or corrupted.",
             422,
         )
 

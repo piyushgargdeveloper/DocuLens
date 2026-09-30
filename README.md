@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.4.0
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.5.0
 
 ## What it does
 
@@ -77,6 +77,9 @@ those passages) so answers stay traceable back to the source text.
 - Retrieved document text is treated as untrusted data: it is fenced in
   the prompt and the model is instructed never to follow instructions
   embedded in a document (see [Security](#security-notes) below).
+- **Reads PDF, Word, text and Markdown** (v2.5.0): documents of any of
+  these types are accepted; non-PDF files are split into even pages so
+  citations stay meaningful.
 - **Shows the model's thinking** (v2.3.0): when the model exposes its
   reasoning, it streams into a collapsible "Thinking…" panel that folds to
   "Thought for Ns", like ChatGPT.

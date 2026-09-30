@@ -564,7 +564,7 @@ function renderDocuments(documents) {
 }
 
 function validateFile(file) {
-  if (!file.name.toLowerCase().endsWith(".pdf")) return "That isn't a PDF. Choose a file ending in .pdf.";
+  if (!/\.(pdf|txt|md|markdown|docx)$/i.test(file.name)) return "Unsupported file. Use a PDF, Word (.docx), text or Markdown file.";
   if (file.size > MAX_UPLOAD_BYTES) return "That file is over the 25MB limit.";
   return null;
 }

@@ -32,10 +32,11 @@ def test_index_page_served(client):
     assert "AI Document Assistant" in response.text
 
 
-def test_ingest_rejects_non_pdf(client):
-    response = client.post("/api/ingest", files={"file": ("notes.txt", b"hello", "text/plain")})
-    assert response.status_code == 400
-    assert "PDF" in response.json()["error"]
+def test_ingest_accepts_a_plain_text_file(client):
+    # Since v2.5.0 text/Markdown/docx are accepted, not only PDFs.
+    response = client.post("/api/ingest", files={"file": ("notes.txt", b"Mercury is the smallest planet.", "text/plain")})
+    assert response.status_code == 200
+    assert response.json()["num_chunks"] > 0
 
 
 def test_ingest_valid_pdf_returns_session_cookie(client, sample_pdf_bytes):
@@ -272,3 +273,25 @@ def test_suggestions_for_a_loaded_document(client, sample_pdf_bytes, monkeypatch
     assert response.status_code == 200
     assert response.json() == {"questions": ["What is Jupiter known for?"]}
     assert client.post("/api/suggestions", json={"id": "nope"}).status_code == 404
+
+
+def test_ingest_accepts_text_and_docx(client):
+    txt = ("Mercury is the smallest planet. " * 30).encode()
+    r = client.post("/api/ingest", files={"file": ("notes.txt", txt, "text/plain")})
+    assert r.status_code == 200 and r.json()["num_chunks"] > 0
+
+    import io as _io
+
+    from docx import Document
+
+    d = Document()
+    for _ in range(20):
+        d.add_paragraph("Saturn has many confirmed moons in the Solar System.")
+    buf = _io.BytesIO(); d.save(buf)
+    r = client.post("/api/ingest", files={"file": ("report.docx", buf.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")})
+    assert r.status_code == 200 and r.json()["num_chunks"] > 0
+
+
+def test_ingest_rejects_unsupported_extension(client):
+    r = client.post("/api/ingest", files={"file": ("malware.exe", b"MZ...", "application/octet-stream")})
+    assert r.status_code == 400

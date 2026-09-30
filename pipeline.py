@@ -9,7 +9,7 @@ import numpy as np
 import embedder
 import llm_client
 from chunker import chunk_pages
-from pdf_loader import load_pdf_pages
+from document_loader import load_document
 from retriever import bm25_scores, ranking, reciprocal_rank_fusion
 from vector_store import VectorStore
 
@@ -58,14 +58,16 @@ def ingest(
     max_chunks: int | None = None,
 ) -> IndexState | None:
     """Run extraction -> chunking -> embedding -> indexing. Returns None if the
-    PDF has no extractable text (invalid/empty PDF).
+    document has no extractable text (invalid/empty/unsupported file).
 
-    With `max_chunks`, raises DocumentTooLargeError *before* embedding, so an
-    oversized document never costs the memory or CPU time of being indexed.
+    The document type is chosen from `name`'s extension (PDF, txt, Markdown,
+    docx); with no name the bytes are treated as a PDF, so older callers keep
+    working. With `max_chunks`, raises DocumentTooLargeError *before* embedding,
+    so an oversized document never costs the memory or CPU time of indexing.
 
     `name` (e.g. the uploaded filename) is tagged onto every chunk so answers
     across several documents can say which document a passage came from."""
-    pages = load_pdf_pages(pdf_bytes)
+    pages = load_document(name or "document.pdf", pdf_bytes)
     if not pages:
         return None
 

@@ -13,9 +13,9 @@
   <meta property="og:url" content="https://ai-doc-assistant.duckdns.org/" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%235B5BD6%22/><path d=%22M10 8h8l5 5v11H10z%22 fill=%22white%22/><rect x=%2213%22 y=%2216%22 width=%227%22 height=%222.4%22 rx=%221%22 fill=%22%23FFD43B%22/></svg>" />
   <!-- ?v= changes with each release so browsers holding an older cached copy fetch the new file. -->
-  <link rel="stylesheet" href="/static/style.css?v=2.4.0" />
+  <link rel="stylesheet" href="/static/style.css?v=2.5.0" />
   <!-- Applies a saved light/dark choice before first paint (no flash). -->
-  <script src="/static/theme.js?v=2.4.0"></script>
+  <script src="/static/theme.js?v=2.5.0"></script>
 </head>
 <body data-view="upload">
   <header class="topbar">
@@ -26,9 +26,9 @@
       <span class="brand-name">AI Document Assistant</span>
     </a>
     <nav class="topbar-links" aria-label="Project links">
-      <a class="topbar-status" id="topbar-status" href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.4.0" target="_blank" rel="noopener" title="AI providers · release notes" hidden>
+      <a class="topbar-status" id="topbar-status" href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.5.0" target="_blank" rel="noopener" title="AI providers · release notes" hidden>
         <span class="topbar-status-dot" id="topbar-status-dot" aria-hidden="true"></span>
-        <span class="topbar-status-label">v2.4.0</span>
+        <span class="topbar-status-label">v2.5.0</span>
       </a>
       <button type="button" class="theme-btn" id="theme-btn" data-choice="system" aria-label="Theme: match system" title="Theme: match system">
         <svg class="icon icon-system" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
@@ -53,7 +53,7 @@
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
         Add PDF
       </label>
-      <input id="add-file-input" type="file" accept="application/pdf" hidden />
+      <input id="add-file-input" type="file" accept="application/pdf,.txt,.md,.markdown,.docx" hidden />
       <ul id="doc-list" class="doc-list"></ul>
       <div class="shelf-actions">
         <div class="shelf-links">
@@ -86,10 +86,10 @@
           <span class="dropzone-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
           </span>
-          <span class="dropzone-title">Drop a PDF here, or <u>browse</u></span>
-          <span class="dropzone-hint">Up to 25MB · PDFs with selectable text work best</span>
+          <span class="dropzone-title">Drop a document here, or <u>browse</u></span>
+          <span class="dropzone-hint">Up to 25MB · PDF, Word, text or Markdown</span>
         </label>
-        <input id="file-input" type="file" accept="application/pdf" hidden />
+        <input id="file-input" type="file" accept="application/pdf,.txt,.md,.markdown,.docx" hidden />
         <p id="upload-error" class="error-text" role="alert" hidden></p>
         <ul class="features" aria-label="What you get">
           <li>
@@ -166,7 +166,7 @@
       <a href="https://github.com/piyushgargog/ai-document-assistant/releases" target="_blank" rel="noopener">Releases</a>
       <a href="https://github.com/piyushgargog/ai-document-assistant/issues" target="_blank" rel="noopener">Issues</a>
       <button type="button" class="footer-link-button" id="privacy-btn">Privacy</button>
-      <a class="version-badge" href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.4.0" target="_blank" rel="noopener" title="Release notes">v2.4.0</a>
+      <a class="version-badge" href="https://github.com/piyushgargog/ai-document-assistant/releases/tag/v2.5.0" target="_blank" rel="noopener" title="Release notes">v2.5.0</a>
     </nav>
   </footer>
 
@@ -215,6 +215,6 @@
     </li>
   </template>
 
-  <script src="/static/app.js?v=2.4.0"></script>
+  <script src="/static/app.js?v=2.5.0"></script>
 </body>
 </html>

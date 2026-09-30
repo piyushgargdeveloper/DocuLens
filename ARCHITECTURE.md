@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v2.4.0._
+_Current as of v2.5.0._
 
 ## Overview
 
