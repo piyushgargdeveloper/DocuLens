@@ -35,7 +35,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The release version. static/index.html repeats it (asset ?v= query, footer,
 # release link) and tests/test_api.py fails if the two ever disagree.
-APP_VERSION = "2.2.2"
+APP_VERSION = "2.3.0"
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
@@ -432,8 +432,9 @@ async def ingest(request: Request, file: UploadFile = File(...)):
 
     if index_state is None:
         return _error(
-            "Couldn't extract any text from this PDF. It may be empty, image-only "
-            "(scanned without OCR), password-protected, or corrupted.",
+            "Couldn't read any text from this PDF. It may be empty, a scan OCR "
+            "couldn't make out (e.g. handwriting or a low-quality image), "
+            "password-protected, or corrupted.",
             422,
         )
 
@@ -529,9 +530,10 @@ async def ask(request: Request):
 
 @app.post("/api/ask/stream")
 async def ask_stream(request: Request):
-    """Answer as server-sent events: `sources` first, then `route` (which
-    provider and model is answering), then `token` events as the model
-    writes, then `done` (or `error`).
+    """Answer as server-sent events: `sources` first, then `reasoning` events
+    (the model's thinking, if it exposes any), a `route` event naming the
+    provider and model, `token` events as the answer is written, then `done`
+    (or `error`).
 
     Retrieval and the first piece of the answer are fetched *before* the
     response starts, so a missing API key, a rate limit or a provider failure
@@ -553,28 +555,39 @@ async def ask_stream(request: Request):
         sources, pieces = await run_in_threadpool(
             pipeline.answer_stream, question, states, history=list(session.history)
         )
-        first = await run_in_threadpool(next, pieces, "")
+        # (kind, text) or None; pulling the first piece surfaces early errors.
+        first = await run_in_threadpool(next, pieces, None)
     except Exception as e:
         _llm_slots.release()
         return _llm_error_response(e, "answering that question")
 
-    by = answered_by(first)
-
     async def events():
-        parts = [first] if first else []
+        parts = []  # answer content only; reasoning is never stored
+        route = {}
         completed = False
         try:
             yield _sse("sources", sources)
-            if by:
-                yield _sse("route", by)
-            if first:
-                yield _sse("token", {"text": first})
-            async for piece in iterate_in_threadpool(pieces):
-                parts.append(piece)
-                yield _sse("token", {"text": piece})
+
+            async def stream():
+                if first is not None:
+                    yield first
+                async for piece in iterate_in_threadpool(pieces):
+                    yield piece
+
+            async for kind, text in stream():
+                if kind == "reasoning":
+                    yield _sse("reasoning", {"text": text})
+                    continue
+                if not route:
+                    # The route rides on the first content piece (see llm_client).
+                    route.update(answered_by(text) or {})
+                    if route:
+                        yield _sse("route", route)
+                parts.append(text)
+                yield _sse("token", {"text": text})
             completed = True
             answer = "".join(parts)
-            session.history.append(_turn(question, answer, by))
+            session.history.append(_turn(question, answer, route or None))
             del session.history[:-MAX_STORED_TURNS]
             yield _sse("done", {})
         except Exception as e:

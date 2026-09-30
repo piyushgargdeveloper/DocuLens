@@ -187,9 +187,10 @@ def answer_stream(
     index_state: IndexState | list[IndexState],
     top_k: int = DEFAULT_TOP_K,
     history: list[dict] | None = None,
-) -> tuple[list[dict], Iterator[str]]:
+) -> tuple[list[dict], Iterator[tuple[str, str]]]:
     """Like answer(), but returns the sources at once and the answer as an
-    iterator of text pieces, so the UI can show passages and text as they come."""
+    iterator of (kind, text) pieces ("content"/"reasoning"), so the UI can show
+    passages, the model's thinking, and the answer text as they come."""
     sources, recent = gather_sources(question, index_state, top_k, history)
     return sources, llm_client.ask_stream(question, sources, history=recent)
 

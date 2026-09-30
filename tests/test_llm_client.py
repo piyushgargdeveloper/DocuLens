@@ -185,12 +185,32 @@ def _stream(*pieces, done=True):
     return _FakeResponse(200, {"lines": lines})
 
 
+def _stream_rc(reasoning, content, done=True):
+    """A stream that sends reasoning deltas, then content deltas."""
+    import json as _json
+
+    lines = [f"data: {_json.dumps({'choices': [{'delta': {'reasoning': r}}]})}" for r in reasoning]
+    lines += [f"data: {_json.dumps({'choices': [{'delta': {'content': c}}]})}" for c in content]
+    if done:
+        lines.append("data: [DONE]")
+    return _FakeResponse(200, {"lines": lines})
+
+
+def _content(pieces):
+    """Answer text pieces from an ask_stream() (kind, text) sequence."""
+    return [t for k, t in pieces if k == "content"]
+
+
+def _reasoning(pieces):
+    return [t for k, t in pieces if k == "reasoning"]
+
+
 def test_streamed_answer_arrives_in_pieces(monkeypatch, groq_only):
     import llm_client
 
     monkeypatch.setenv("LLM_API_KEY", "test")
     monkeypatch.setattr(llm_client.requests, "post", lambda *a, **k: _stream("Jupiter ", "is ", "largest."))
-    assert list(llm_client.ask_stream("q?", [])) == ["Jupiter ", "is ", "largest."]
+    assert _content(llm_client.ask_stream("q?", [])) == ["Jupiter ", "is ", "largest."]
 
 
 def test_stream_falls_back_when_the_primary_is_rate_limited(monkeypatch, groq_only):
@@ -208,7 +228,7 @@ def test_stream_falls_back_when_the_primary_is_rate_limited(monkeypatch, groq_on
     monkeypatch.setenv("LLM_MODEL", "primary")
     monkeypatch.setenv("LLM_FALLBACK_MODEL", "backup")
     monkeypatch.setattr(llm_client.requests, "post", fake_post)
-    assert "".join(llm_client.ask_stream("q?", [])) == "from backup"
+    assert "".join(_content(llm_client.ask_stream("q?", []))) == "from backup"
     assert models == [("primary", True), ("backup", True)]
 
 
@@ -223,7 +243,7 @@ def test_empty_stream_is_retried_without_streaming(monkeypatch, groq_only):
 
     monkeypatch.setenv("LLM_API_KEY", "test")
     monkeypatch.setattr(llm_client.requests, "post", fake_post)
-    assert list(llm_client.ask_stream("q?", [])) == ["recovered answer"]
+    assert _content(llm_client.ask_stream("q?", [])) == ["recovered answer"]
     assert calls == [True, False]
 
 
@@ -254,7 +274,7 @@ def test_stream_is_decoded_as_utf8_even_without_a_charset():
     response.status_code = 200
     response.headers["Content-Type"] = "text/event-stream"
     response.raw = io.BytesIO(body.encode("utf-8"))
-    assert "".join(llm_client._stream_deltas(response)) == text
+    assert "".join(t for k, t in llm_client._stream_deltas(response)) == text
 
 
 def test_question_prompt_ends_with_the_injection_reminder():
@@ -346,8 +366,9 @@ def test_stream_fails_over_before_the_first_token_and_tags_it(monkeypatch, three
 
     monkeypatch.setattr(llm_client.requests, "post", fake_post)
     pieces = list(llm_client.ask_stream("q?", []))
-    assert "".join(pieces) == "from openrouter"
-    assert llm_client.answered_by(pieces[0])["provider"] == "OpenRouter"
+    content = _content(pieces)
+    assert "".join(content) == "from openrouter"
+    assert llm_client.answered_by(content[0])["provider"] == "OpenRouter"
 
 
 def test_a_stream_that_breaks_after_the_first_token_is_not_restarted(monkeypatch, three_providers):
@@ -364,10 +385,45 @@ def test_a_stream_that_breaks_after_the_first_token_is_not_restarted(monkeypatch
 
     monkeypatch.setattr(llm_client.requests, "post", fake_post)
     stream = llm_client.ask_stream("q?", [])
-    assert next(stream) == "half "
+    assert next(stream) == ("content", "half ")
     with pytest.raises(llm_client.LLMRequestError):
         list(stream)
     assert len(urls) == 1  # a second provider would repeat text already shown
+
+
+def test_reasoning_is_streamed_before_the_answer_and_tagged_separately(monkeypatch, groq_only):
+    import llm_client
+
+    monkeypatch.setenv("LLM_API_KEY", "test")
+    monkeypatch.setattr(
+        llm_client.requests, "post",
+        lambda *a, **k: _stream_rc(["The user asks ", "which planet."], ["Jupiter ", "is largest."]),
+    )
+    pieces = list(llm_client.ask_stream("q?", []))
+    assert _reasoning(pieces) == ["The user asks ", "which planet."]
+    assert _content(pieces) == ["Jupiter ", "is largest."]
+    # reasoning is emitted before the answer content
+    assert [k for k, _ in pieces] == ["reasoning", "reasoning", "content", "content"]
+
+
+def test_reasoning_from_a_failing_route_is_not_shown(monkeypatch, three_providers):
+    # gpt-oss sends reasoning before content; if that route then fails before
+    # any answer text, its thinking must not leak from the next provider.
+    import llm_client
+
+    def fake_post(url, json, headers, timeout, stream=False):
+        if "groq" in url:
+            return _FakeResponse(200, {"lines": [
+                'data: {"choices": [{"delta": {"reasoning": "secret groq thoughts"}}]}',
+                'data: {"error": {"message": "boom"}}',
+            ]})
+        return _stream_rc(["clean thoughts"], ["answer"])
+
+    monkeypatch.setattr(llm_client.requests, "post", fake_post)
+    pieces = list(llm_client.ask_stream("q?", []))
+    assert "secret groq thoughts" not in _reasoning(pieces)
+    assert _reasoning(pieces) == ["clean thoughts"]
+    assert _content(pieces) == ["answer"]
 
 
 def test_status_names_providers_without_revealing_keys(monkeypatch, three_providers):

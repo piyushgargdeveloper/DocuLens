@@ -44,7 +44,8 @@ For context before reporting an issue, see the "Security notes" section of
 - CI runs `pip-audit`; a known vulnerability in any installed dependency
   fails the build and blocks merging.
 - Uploads are checked for a real PDF signature, filenames are sanitised, and
-  oversized documents are rejected before embedding.
+  oversized documents are rejected before embedding. OCR of scanned PDFs is
+  bounded (at most 30 pages) so an upload can't turn into unbounded CPU work.
 - The upload screen discloses that questions and relevant passages are sent
   to the LLM provider.
 - Dependencies are watched by Dependabot, and CodeQL scans every push.

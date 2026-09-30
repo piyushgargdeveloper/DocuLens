@@ -383,6 +383,8 @@ function startAnswer(el, sources, { heading, sourcesLabel = "Sources" } = {}) {
     h.textContent = heading;
     main.appendChild(h);
   }
+  const thinking = buildThinking();
+  main.appendChild(thinking.wrap);
   const notes = buildNotes(sources, sourcesLabel);
   const body = document.createElement("p");
   body.className = "msg-text";
@@ -392,7 +394,74 @@ function startAnswer(el, sources, { heading, sourcesLabel = "Sources" } = {}) {
     el.classList.add("has-notes");
     el.appendChild(notes.panel);
   }
-  return { el, main, body, notes, sources: sources || [], text: "", route: null };
+  return { el, main, body, notes, thinking, sources: sources || [], text: "", route: null };
+}
+
+/** The model's own reasoning, shown like ChatGPT's "Thinking": a collapsible
+ *  panel that streams while the model thinks, then folds to "Thought for Ns".
+ *  Hidden entirely for models that expose no reasoning. */
+function buildThinking() {
+  const wrap = document.createElement("div");
+  wrap.className = "thinking";
+  wrap.hidden = true;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "thinking-toggle";
+  toggle.setAttribute("aria-expanded", "true");
+  const spark = document.createElement("span");
+  spark.className = "thinking-spark";
+  spark.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.className = "thinking-label";
+  label.textContent = "Thinking";
+  const chevron = document.createElement("span");
+  chevron.className = "thinking-chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  toggle.append(spark, label, chevron);
+
+  const body = document.createElement("div");
+  body.className = "thinking-body";
+  const text = document.createElement("p");
+  text.className = "thinking-text";
+  body.appendChild(text);
+
+  const t = { wrap, toggle, label, body, text, raw: "", startedAt: 0, done: false, open: true };
+  toggle.addEventListener("click", () => setThinkingOpen(t, !t.open));
+  wrap.append(toggle, body);
+  return t;
+}
+
+function setThinkingOpen(t, open) {
+  t.open = open;
+  t.wrap.classList.toggle("open", open);
+  t.toggle.setAttribute("aria-expanded", String(open));
+}
+
+function appendReasoning(answer, text) {
+  const t = answer.thinking;
+  if (!t.startedAt) {
+    t.startedAt = performance.now();
+    t.wrap.hidden = false;
+    t.wrap.classList.add("live");
+    setThinkingOpen(t, true);
+  }
+  t.raw += text;
+  t.text.textContent = t.raw;
+  t.body.scrollTop = t.body.scrollHeight;
+}
+
+/** Called when the first answer text arrives: stop the thinking animation and
+ *  collapse it to a one-line "Thought for Ns" the reader can reopen. */
+function finishThinking(answer) {
+  const t = answer.thinking;
+  if (!t.startedAt || t.done) return;
+  t.done = true;
+  t.wrap.classList.remove("live");
+  t.wrap.classList.add("thinking-done");
+  const secs = Math.max(1, Math.round((performance.now() - t.startedAt) / 1000));
+  t.label.textContent = `Thought for ${secs}s`;
+  setThinkingOpen(t, false);
 }
 
 function updateAnswer(answer) {
@@ -402,6 +471,7 @@ function updateAnswer(answer) {
 
 function finishAnswer(answer, { followUps = false, stopped = false } = {}) {
   answer.body.classList.remove("streaming");
+  if (answer.thinking) finishThinking(answer);
   updateAnswer(answer);
   if (stopped) {
     const note = document.createElement("p");
@@ -754,9 +824,13 @@ async function askQuestion(question, shown = question) {
           answer = startAnswer(pending, data);
           answer.body.classList.add("streaming");
           scrollToStart(asked);
+        } else if (name === "reasoning" && answer) {
+          appendReasoning(answer, data.text);
+          scrollToBottom();
         } else if (name === "route" && answer) {
           answer.route = data;
         } else if (name === "token" && answer) {
+          if (!answer.text) finishThinking(answer);
           answer.text += data.text;
           if (!frame) frame = requestAnimationFrame(render);
         } else if (name === "error") {

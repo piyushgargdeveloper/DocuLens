@@ -23,7 +23,7 @@ def fake_stream(monkeypatch):
 
     def fake_ask_stream(question, passages, timeout=30, history=None):
         seen["passages"], seen["history"] = passages, history
-        yield from ["Jupiter ", "is the ", "largest planet."]
+        yield from [("content", "Jupiter "), ("content", "is the "), ("content", "largest planet.")]
 
     monkeypatch.setattr(llm_client, "ask_stream", fake_ask_stream)
     return seen
@@ -73,7 +73,7 @@ def test_a_failure_mid_stream_is_reported_and_not_saved(client, sample_pdf_bytes
     import llm_client
 
     def breaks(*args, **kwargs):
-        yield "Partial "
+        yield ("content", "Partial ")
         raise llm_client.LLMRequestError("connection dropped")
 
     monkeypatch.setattr(llm_client, "ask_stream", breaks)
@@ -138,15 +138,20 @@ def test_stream_names_the_provider_that_answers(client, sample_pdf_bytes, monkey
     route = Route("openrouter", "OpenRouter", "https://example.invalid", "openai/gpt-oss-120b:free", "secret-key")
 
     def fake_ask_stream(question, passages, timeout=30, history=None):
-        yield llm_client._tagged("Jupiter ", route)
-        yield "is largest."
+        yield ("reasoning", "The passage says Jupiter is largest.")
+        yield ("content", llm_client._tagged("Jupiter ", route))
+        yield ("content", "is largest.")
 
     monkeypatch.setattr(llm_client, "ask_stream", fake_ask_stream)
     _upload(client, sample_pdf_bytes)
     response = client.post("/api/ask/stream", json={"question": "What is Jupiter known for?"})
     events = _events(response)
-    assert [name for name, _ in events[:2]] == ["sources", "route"]
-    assert events[1][1] == {"provider": "OpenRouter", "model": "openai/gpt-oss-120b:free"}
+    kinds = [name for name, _ in events]
+    assert kinds[0] == "sources"
+    # route is announced once, right before the first answer token
+    assert "route" in kinds and kinds.index("route") == kinds.index("token") - 1
+    route = next(d for n, d in events if n == "route")
+    assert route == {"provider": "OpenRouter", "model": "openai/gpt-oss-120b:free"}
     assert "secret-key" not in response.text
     # Kept with the turn, so a reloaded page still says who answered.
     assert client.get("/api/session").json()["history"][-1]["answered_by"]["provider"] == "OpenRouter"
@@ -168,3 +173,25 @@ def test_status_lists_providers_without_secrets(client, monkeypatch):
 
 def test_health_check(client):
     assert client.get("/api/health").json() == {"ok": True}
+
+
+def test_reasoning_is_streamed_as_its_own_event_before_the_answer(client, sample_pdf_bytes, monkeypatch):
+    import llm_client
+
+    def fake_ask_stream(question, passages, timeout=30, history=None):
+        yield ("reasoning", "Let me check the passage. ")
+        yield ("reasoning", "It names Jupiter. ")
+        yield ("content", "Jupiter is largest.")
+
+    monkeypatch.setattr(llm_client, "ask_stream", fake_ask_stream)
+    _upload(client, sample_pdf_bytes)
+    events = _events(client.post("/api/ask/stream", json={"question": "which is largest?"}))
+    kinds = [name for name, _ in events]
+    assert kinds[0] == "sources"
+    assert "reasoning" in kinds and "token" in kinds
+    # every reasoning event comes before the first answer token
+    assert kinds.index("reasoning") < kinds.index("token")
+    reasoning = "".join(d["text"] for n, d in events if n == "reasoning")
+    assert reasoning == "Let me check the passage. It names Jupiter. "
+    # reasoning is not saved as the answer
+    assert client.get("/api/session").json()["history"][-1]["answer"] == "Jupiter is largest."

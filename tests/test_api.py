@@ -83,7 +83,7 @@ def test_ingest_unextractable_pdf_returns_422(client):
     # Starts like a PDF (passes the signature check) but can't be parsed.
     response = client.post("/api/ingest", files={"file": ("broken.pdf", b"%PDF-1.4 not really", "application/pdf")})
     assert response.status_code == 422
-    assert "extract" in response.json()["error"]
+    assert "read any text" in response.json()["error"]
 
 
 def test_ask_with_invalid_json_body_is_a_400_not_a_crash(client, sample_pdf_bytes):

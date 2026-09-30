@@ -295,30 +295,48 @@ def ask_stream(
     passages: list[dict],
     timeout: int = 30,
     history: list[dict] | None = None,
-) -> Iterator[str]:
-    """Like ask(), but yields the answer in pieces as the model writes it."""
+) -> Iterator[tuple[str, str]]:
+    """Like ask(), but yields (kind, text) pieces as the model writes them:
+    kind "content" for the answer, "reasoning" for the model's thinking."""
     return _chat_stream(build_messages(question, passages, history), timeout)
 
 
-def _chat_stream(messages: list[dict], timeout: int) -> Iterator[str]:
-    """Stream one chat completion, with the same provider failover and
-    empty-reply handling as _chat(). A provider can be swapped only before
-    the first piece arrives; after that, a failure is reported. The first
-    piece is an Answer, so callers can tell who is answering. Errors before
-    the first piece raise from the first next() call, so callers can still
-    report them cleanly."""
+def _chat_stream(messages: list[dict], timeout: int) -> Iterator[tuple[str, str]]:
+    """Stream one chat completion as (kind, text) pieces -- kind "content" or
+    "reasoning" -- with the same provider failover and empty-reply handling as
+    _chat(). A provider can be swapped only until the first *content* piece
+    arrives (reasoning before it doesn't count, and isn't shown from a route
+    that then fails). The first content piece's text is an Answer, so callers
+    can tell who is answering. Errors before the first content piece raise
+    from the generator, so callers can still report them cleanly."""
     chain = _candidates()
     failures = []
     for i, route in enumerate(chain):
         patient = i == len(chain) - 1
-        produced = False
+        produced = False  # a content piece has been yielded
+        pending_reasoning = []
         try:
             response = _post(messages, route, timeout, stream=True, patient=patient)
             try:
-                for piece in _stream_deltas(response):
-                    if piece:
-                        yield piece if produced else _tagged(piece, route)
+                for kind, piece in _stream_deltas(response):
+                    if not piece:
+                        continue
+                    if kind == "reasoning":
+                        # Hold reasoning until the answer commits to this route,
+                        # so a provider that fails mid-thought shows nothing.
+                        if produced:
+                            yield ("reasoning", piece)
+                        else:
+                            pending_reasoning.append(piece)
+                        continue
+                    if not produced:
+                        for r in pending_reasoning:
+                            yield ("reasoning", r)
+                        pending_reasoning.clear()
+                        yield ("content", _tagged(piece, route))
                         produced = True
+                    else:
+                        yield ("content", piece)
             finally:
                 response.close()
             if not produced:
@@ -326,7 +344,7 @@ def _chat_stream(messages: list[dict], timeout: int) -> Iterator[str]:
                 if not text:
                     raise LLMRequestError("The LLM returned an empty answer.")
                 produced = True
-                yield _tagged(text, route)
+                yield ("content", _tagged(text, route))
         except LLMRequestError as exc:
             if produced:
                 raise
@@ -338,8 +356,12 @@ def _chat_stream(messages: list[dict], timeout: int) -> Iterator[str]:
     raise _final_error(failures)
 
 
-def _stream_deltas(response) -> Iterator[str]:
-    """Text pieces from an OpenAI-compatible server-sent-events stream."""
+def _stream_deltas(response) -> Iterator[tuple[str, str]]:
+    """(kind, text) pieces from an OpenAI-compatible server-sent-events stream,
+    where kind is "content" (the answer) or "reasoning" (the model's own
+    thinking, which gpt-oss and Nemotron send in a separate `reasoning` delta
+    field). Reasoning is shown as a collapsible "thinking" panel and is never
+    stored as the answer."""
     # SSE is UTF-8 by definition, but providers send `text/event-stream`
     # without a charset, and requests then falls back to ISO-8859-1 -- which
     # turned "self‑attention" into "selfâ€‘attention" and broke page citations
@@ -358,11 +380,17 @@ def _stream_deltas(response) -> Iterator[str]:
         if "error" in event:
             raise LLMRequestError("The LLM API reported an error while streaming.")
         try:
-            content = event["choices"][0]["delta"].get("content")
-        except (KeyError, IndexError, TypeError, AttributeError):
+            delta = event["choices"][0]["delta"]
+        except (KeyError, IndexError, TypeError):
             continue
+        if not isinstance(delta, dict):
+            continue
+        reasoning = delta.get("reasoning") or delta.get("reasoning_content")
+        if reasoning:
+            yield ("reasoning", reasoning)
+        content = delta.get("content")
         if content:
-            yield content
+            yield ("content", content)
 
 
 def _record_failure(route: Route, exc: LLMRequestError) -> None:

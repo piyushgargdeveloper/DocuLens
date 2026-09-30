@@ -5,7 +5,7 @@ small, self-contained RAG (Retrieval-Augmented Generation) tool for asking
 grounded questions about uploaded PDFs. It started as a single-document
 tool; the optional enhancements listed originally (multiple documents,
 conversation history, document summary) have since been built and are now
-part of the requirements below. _Current as of v2.2.0._
+part of the requirements below. _Current as of v2.3.0._
 
 ## Problem
 
@@ -44,7 +44,6 @@ Build a document question-answering tool that:
 - User accounts, persistence across server restarts, or a database — state
   is an in-memory session per browser.
 - Fine-tuning any model.
-- OCR for scanned/image-only PDFs.
 - A frontend framework, bundler or build step — the frontend is plain
   HTML/CSS/JS.
 

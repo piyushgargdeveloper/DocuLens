@@ -374,3 +374,18 @@ understood and explainable without AI help (the task requires it):
   better footer): provider status in the footer, "answered by" on answers,
   a theme toggle, toasts and jump-to-latest. It checked them in a headless
   browser, which caught toasts covering the footer.
+
+## Version 2.3.0
+
+- The user asked for five things: a cleaner mobile footer, OCR for scanned
+  PDFs, fixes to broken UI, a nicer "loading/answer" animation, and a
+  ChatGPT-style "show thinking" feature.
+- The assistant checked the providers first and found Groq's gpt-oss and
+  OpenRouter's Nemotron both stream a `reasoning` field, so "show thinking"
+  is real reasoning, not a fake spinner. It buffers reasoning from a route
+  until that route commits to an answer, so a failed provider's thoughts
+  never leak.
+- OCR was added as a bounded fallback (only for PDFs with no text layer, at
+  most 30 pages) and verified on the server before shipping.
+- It reproduced the mobile footer and the broken thinking-panel collapse
+  from screenshots and fixed both.

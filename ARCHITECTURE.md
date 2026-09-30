@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v2.2.0._
+_Current as of v2.3.0._
 
 ## Overview
 
@@ -64,7 +64,9 @@ documented chunking evaluation stays valid.
 
 3. **Document loader** (`pdf_loader.py`)
    PyMuPDF extracts text page by page into `[(page_number, text), ...]`,
-   skipping empty pages. An invalid, encrypted or image-only PDF yields an
+   skipping empty pages. A PDF with no text layer anywhere (a scan) is
+   OCR'd instead (Tesseract via pytesseract, up to 30 pages, ~144 DPI). An
+   invalid, encrypted or unreadable PDF yields an
    empty list rather than an exception.
 
 4. **Chunker** (`chunker.py`)

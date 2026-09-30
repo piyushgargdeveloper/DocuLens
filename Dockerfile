@@ -6,6 +6,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# tesseract is the OCR engine used for scanned / image-only PDFs (pytesseract
+# is just a wrapper). --no-install-recommends + the English data only keeps
+# this to ~a few tens of MB; the apt lists are removed in the same layer.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
 # The base image ships setuptools 78.1.0, which has published advisories
 # (PYSEC-2025-49, PYSEC-2026-3447) -- found by the pip-audit CI step. Nothing
 # here uses it at runtime, but it shouldn't sit in the image unpatched.

@@ -11,6 +11,10 @@
 # The full, from-scratch build remains ../Dockerfile.
 FROM ai-document-assistant:prod
 WORKDIR /app
+# OCR engine for scanned PDFs (see pdf_loader.py); English data only.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir --upgrade pip "setuptools>=83"
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
