@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.2.0
+**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.3.0
 
 ## What it does
 
@@ -77,6 +77,10 @@ those passages) so answers stay traceable back to the source text.
 - Retrieved document text is treated as untrusted data: it is fenced in
   the prompt and the model is instructed never to follow instructions
   embedded in a document (see [Security](#security-notes) below).
+- **Shows the model's thinking** (v2.3.0): when the model exposes its
+  reasoning, it streams into a collapsible "Thinking…" panel that folds to
+  "Thought for Ns", like ChatGPT.
+- **Reads scanned PDFs** (v2.3.0): image-only pages are OCR'd with Tesseract.
 - **Several AI providers with automatic failover** (v2.2.0): Groq and
   Hugging Face (`gpt-oss-120b`), OpenRouter (Nemotron 3 Super 120B, free
   tier) and NVIDIA (`gpt-oss-20b`); Google AI Studio (Gemini) is supported
@@ -307,10 +311,11 @@ after 2 hours of inactivity, or when the server restarts.
 When an answer arrives, the conversation scrolls to your question so the
 answer reads from its start.
 
-If the document contains no extractable text (empty, corrupt,
-password-protected, or image-only without OCR), or the LLM API key is
-missing/invalid, the app shows a clear error message instead of
-crashing.
+Scanned / image-only PDFs (no text layer) are run through OCR
+(Tesseract) automatically, so a scan can be read too. If a document still
+yields no text (empty, corrupt, password-protected, or a scan OCR can't make
+out), or the LLM API key is missing/invalid, the app shows a clear error
+message instead of crashing.
 
 ### How source citations work
 
@@ -581,8 +586,9 @@ without a shared session store.
   deliberate simplicity tradeoff for a project at this scale, not an
   oversight — a production multi-instance deployment would need a shared
   store (e.g. Redis) instead.
-- Uploads are capped at 25MB, and scanned/image-only PDFs with no
-  embedded text layer will not extract any text (no OCR step).
+- Uploads are capped at 25MB. Scanned / image-only PDFs are OCR'd
+  (Tesseract, English, up to 30 pages); handwriting or low-quality scans may
+  still not be readable.
 - Chunking is character-based, not sentence/semantic-boundary aware —
   simple and predictable, but a sentence or table row can be cut at a
   chunk boundary, and small chunks measurably hurt retrieval (Hit@4 0.59

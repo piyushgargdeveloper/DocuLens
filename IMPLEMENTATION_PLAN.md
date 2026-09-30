@@ -121,6 +121,9 @@ Added later, each with its reasoning in `DECISIONS.md`:
   retrieval in production, per-question document scope, copy/export,
   new composer, concurrency limits, CSRF guard, `__Host-` cookie,
   `pip-audit` in CI.
+- v2.3.0: "show thinking" (streamed model reasoning in a collapsible panel
+  via a `reasoning` SSE event), OCR for scanned PDFs (Tesseract, bounded),
+  a nicer loading/streaming animation, and a compact mobile footer.
 - v2.2.0: several AI providers with failover and cooldowns
   (`providers.py`: Groq, OpenRouter, NVIDIA, Hugging Face; Google AI
   Studio opt-in), "answered by"
