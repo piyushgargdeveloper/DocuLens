@@ -250,7 +250,9 @@ def test_page_shows_the_same_version_as_the_app():
         + re.findall(r"releases/tag/v([\d.]+)", html)
         + re.findall(r">v([\d.]+)<", html)
     )
-    assert len(found) == 5  # style.css, theme.js, app.js, release link, footer label
+    # Every version string in the page (asset ?v=, release links, badge labels)
+    # must equal APP_VERSION; the exact count grows as more badges are added.
+    assert len(found) >= 5
     assert set(found) == {main.APP_VERSION}
     assert main.app.version == main.APP_VERSION
 

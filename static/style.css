@@ -1,8 +1,8 @@
 /*
- * "Modern product" -- see DESIGN.md. A clean, calm SaaS surface: zinc
- * neutrals, one iris accent, soft depth from borders and shadows (no
- * gradients), Inter throughout. Answers sit beside the source passages they
- * came from, and every page citation is a clickable chip.
+ * "Reading Room" -- see DESIGN.md. A study desk, not a SaaS panel: warm paper
+ * neutrals, Fraunces editorial serif for headlines, Inter for the interface,
+ * mono for every numeral, one ink-green accent, and highlighter amber reserved
+ * for citations and the source they point to.
  */
 
 /* Fonts are served from this site (static/fonts/, SIL Open Font License), not
@@ -16,47 +16,64 @@
   src: url("/static/fonts/inter-variable.woff2") format("woff2");
 }
 
-:root {
-  --bg: #F7F7F8;
-  --surface: #FFFFFF;
-  --surface-2: #F4F4F5;
-  --surface-3: #EDEDF0;
-  --border: #E4E4E7;
-  --border-strong: #D4D4D8;
-  --text: #18181B;
-  --text-soft: #52525B;
-  --text-faint: #8A8A93;
-  --accent: #5B5BD6;
-  --accent-hover: #4B4BC4;
-  --accent-soft: #EEEEFD;
-  --accent-soft-2: #E0E0FB;
-  --accent-text: #3E3EB0;
-  --on-accent: #FFFFFF;
-  --mark: #FFF3B0;
-  --mark-edge: #F5C518;
-  --danger: #D92D20;
-  --danger-soft: #FEF3F2;
-  --heart: #E5484D;
+/* Fraunces: a high-contrast old-style display serif with optical sizing, used
+   only for headlines, the wordmark and section labels -- the type decision
+   that gives the page a voice. */
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/static/fonts/fraunces-variable.woff2") format("woff2");
+}
 
-  --shadow-xs: 0 1px 2px rgba(16, 16, 24, 0.05);
-  --shadow-sm: 0 1px 3px rgba(16, 16, 24, 0.06), 0 1px 2px rgba(16, 16, 24, 0.04);
-  --shadow-md: 0 8px 24px -6px rgba(16, 16, 24, 0.10), 0 2px 6px rgba(16, 16, 24, 0.05);
-  --shadow-lg: 0 24px 56px -12px rgba(16, 16, 24, 0.22);
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+:root {
+  /* Warm paper neutrals -- tinted, never cold zinc. */
+  --bg: #F5F1E9;
+  --surface: #FFFDF8;
+  --surface-2: #F1EBDF;
+  --surface-3: #E8E0D1;
+  --border: #E4DBCB;
+  --border-strong: #D3C7B2;
+  --text: #22201B;
+  --text-soft: #5B5648;
+  --text-faint: #8C8674;
+  /* One ink-green accent: defensibly not blue, not indigo. */
+  --accent: #15725A;
+  --accent-hover: #0F5E49;
+  --accent-soft: #E4EFE9;
+  --accent-soft-2: #C9E1D6;
+  --accent-text: #0C5140;
+  --on-accent: #FFFDF8;
+  /* Highlighter amber -- reserved for citations and the passage they point to. */
+  --mark: #FBE7A6;
+  --mark-edge: #E0A83A;
+  --danger: #B4402E;
+  --danger-soft: #F8EAE4;
+  --heart: #C6503F;
+  --success: #15725A;
+
+  --shadow-xs: 0 1px 2px rgba(60, 48, 24, 0.06);
+  --shadow-sm: 0 1px 3px rgba(60, 48, 24, 0.07), 0 1px 2px rgba(60, 48, 24, 0.05);
+  --shadow-md: 0 10px 28px -8px rgba(50, 40, 20, 0.16), 0 2px 6px rgba(50, 40, 20, 0.07);
+  --shadow-lg: 0 26px 60px -14px rgba(40, 32, 16, 0.28);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
 
   --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
 
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-md: 0.9375rem;
   --text-lg: 1.0625rem;
-  --text-title: clamp(2rem, 1.3rem + 2.8vw, 3.1rem);
+  --text-title: clamp(2.4rem, 1.4rem + 4vw, 4.2rem);
 
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 16px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   color-scheme: light;
 }
@@ -65,61 +82,64 @@
    (theme.js sets data-theme), or always when they picked dark. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0B0B0E;
-    --surface: #131317;
-    --surface-2: #1B1B20;
-    --surface-3: #232329;
-    --border: #26262C;
-    --border-strong: #34343C;
-    --text: #F4F4F5;
-    --text-soft: #B4B4BC;
-    --text-faint: #7C7C86;
-    --accent: #7B7BF0;
-    --accent-hover: #8E8EF5;
-    --accent-soft: #1F1F3A;
-    --accent-soft-2: #2A2A4E;
-    --accent-text: #B4B4FF;
-    --on-accent: #0B0B0E;
-    --mark: #3D3517;
-    --mark-edge: #E8C83F;
-    --danger: #FF6B61;
-    --danger-soft: #2A1614;
-    --heart: #FF6369;
+    /* Warm dark: a lamp-lit desk, not a black void. */
+    --bg: #14120D;
+    --surface: #1D1A14;
+    --surface-2: #24211A;
+    --surface-3: #2E2A20;
+    --border: #322E24;
+    --border-strong: #453F31;
+    --text: #F1ECE0;
+    --text-soft: #B8B09C;
+    --text-faint: #857E6C;
+    --accent: #52B893;
+    --accent-hover: #64C7A2;
+    --accent-soft: #16281F;
+    --accent-soft-2: #21382C;
+    --accent-text: #7FD3B4;
+    --on-accent: #10201A;
+    --mark: #40371B;
+    --mark-edge: #D7A93F;
+    --danger: #F08A72;
+    --danger-soft: #2C1712;
+    --heart: #F08A78;
+    --success: #52B893;
 
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
-    --shadow-md: 0 8px 24px -6px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.35);
-    --shadow-lg: 0 24px 56px -12px rgba(0, 0, 0, 0.75);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 10px 28px -8px rgba(0, 0, 0, 0.62), 0 2px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 26px 60px -14px rgba(0, 0, 0, 0.78);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0B0B0E;
-  --surface: #131317;
-  --surface-2: #1B1B20;
-  --surface-3: #232329;
-  --border: #26262C;
-  --border-strong: #34343C;
-  --text: #F4F4F5;
-  --text-soft: #B4B4BC;
-  --text-faint: #7C7C86;
-  --accent: #7B7BF0;
-  --accent-hover: #8E8EF5;
-  --accent-soft: #1F1F3A;
-  --accent-soft-2: #2A2A4E;
-  --accent-text: #B4B4FF;
-  --on-accent: #0B0B0E;
-  --mark: #3D3517;
-  --mark-edge: #E8C83F;
-  --danger: #FF6B61;
-  --danger-soft: #2A1614;
-  --heart: #FF6369;
+  --bg: #14120D;
+  --surface: #1D1A14;
+  --surface-2: #24211A;
+  --surface-3: #2E2A20;
+  --border: #322E24;
+  --border-strong: #453F31;
+  --text: #F1ECE0;
+  --text-soft: #B8B09C;
+  --text-faint: #857E6C;
+  --accent: #52B893;
+  --accent-hover: #64C7A2;
+  --accent-soft: #16281F;
+  --accent-soft-2: #21382C;
+  --accent-text: #7FD3B4;
+  --on-accent: #10201A;
+  --mark: #40371B;
+  --mark-edge: #D7A93F;
+  --danger: #F08A72;
+  --danger-soft: #2C1712;
+  --heart: #F08A78;
+  --success: #52B893;
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
-  --shadow-md: 0 8px 24px -6px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 24px 56px -12px rgba(0, 0, 0, 0.75);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 10px 28px -8px rgba(0, 0, 0, 0.62), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 26px 60px -14px rgba(0, 0, 0, 0.78);
   color-scheme: dark;
 }
 
@@ -141,8 +161,9 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
-  overflow: hidden;
+  /* The opening pages scroll as a normal document, so the footer is a real
+     footer reached by scrolling -- not a bar bolted to the viewport. */
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -150,6 +171,13 @@ body {
   line-height: 1.55;
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
+}
+
+/* A conversation is an app shell: the composer is the floor, the messages
+   scroll inside their card, and the marketing footer steps aside. */
+body[data-view="chat"] {
+  height: 100dvh;
+  overflow: hidden;
 }
 
 :focus-visible {
@@ -230,9 +258,11 @@ a {
   align-items: center;
   gap: 10px;
   text-decoration: none;
-  font-weight: 650;
-  font-size: 0.975rem;
-  letter-spacing: -0.015em;
+  font-family: var(--display);
+  font-weight: 560;
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 40, "WONK" 1;
 }
 
 .topbar-links {
@@ -298,31 +328,88 @@ a {
   transform: translateY(-1px);
 }
 
+/* Version + AI-provider health, in the top bar -- shown in a conversation,
+   where the footer (which carries the same in the opening page) is hidden. */
+.topbar-status {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+body[data-view="chat"] .topbar-status:not([hidden]) {
+  display: inline-flex;
+}
+
+.topbar-status:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.topbar-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.topbar-status[data-state="cooling"] .topbar-status-dot {
+  background: var(--mark-edge);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark-edge) 22%, transparent);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+.topbar-status[data-state="down"] .topbar-status-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent);
+}
+
 /* ---------- Layout ---------- */
 
 .layout {
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 auto;
   display: flex;
   gap: 20px;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 0 24px 16px;
+  padding: 0 24px 20px;
+}
+
+/* On the opening pages the content fills the first screen so the footer sits
+   just below the fold, the way a colophon closes a book. */
+body:not([data-view="chat"]) .layout {
+  min-height: calc(100dvh - 76px);
+}
+
+body[data-view="chat"] .layout {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .desk {
   flex: 1;
   min-width: 0;
-  /* Without this, in the stacked mobile layout the desk grows to fit its
-     content: the conversation stops scrolling and the ask box is pushed
-     below the screen. */
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  /* The start page scrolls on short screens instead of running under the
-     footer; the conversation scrolls inside its own card. */
-  overflow-y: auto;
+}
+
+/* Only the conversation scrolls inside itself; the opening pages let the
+   whole document scroll instead. */
+body[data-view="chat"] .desk {
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* The document sidebar only exists once there is something in it. */
@@ -478,11 +565,13 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .intro-title {
-  font-weight: 700;
+  font-family: var(--display);
+  font-weight: 560;
   font-size: var(--text-title);
-  line-height: 1.1;
-  letter-spacing: -0.035em;
-  margin: 0 0 16px;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 144, "SOFT" 0, "WONK" 1;
+  margin: 0 0 18px;
   text-wrap: balance;
 }
 
@@ -553,6 +642,7 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .dropzone-title {
+  font-family: var(--display);
   font-weight: 600;
   font-size: var(--text-lg);
 }
@@ -639,6 +729,7 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .reading-line {
+  font-family: var(--display);
   font-size: var(--text-lg);
   font-weight: 600;
   margin: 6px 0 0;
@@ -900,6 +991,8 @@ body:not([data-view="chat"]) .shelf {
 
 .msg-assistant::before {
   content: "AI";
+  font-family: var(--display);
+  font-style: italic;
   position: absolute;
   left: 0;
   top: 0;
@@ -926,6 +1019,7 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .msg-heading {
+  font-family: var(--display);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1100,7 +1194,7 @@ body:not([data-view="chat"]) .shelf {
 
 /* Page citation inside an answer: a clickable chip. */
 .cite {
-  font-family: var(--font);
+  font-family: var(--mono);
   font-size: 0.7rem;
   font-weight: 650;
   line-height: 1;
@@ -1282,9 +1376,17 @@ button.cite:hover {
 
 /* ---------- Motion ---------- */
 
+/* Things settle into place with a soft spring, the way a page is laid down --
+   not the uniform fade-up-on-everything of a template. */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
+  0% { opacity: 0; transform: translateY(10px); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes settle {
+  0% { opacity: 0; transform: translateY(14px) scale(0.985); }
+  100% { opacity: 1; transform: none; }
 }
 
 @keyframes fade {
@@ -1294,27 +1396,29 @@ button.cite:hover {
 
 .msg-enter,
 .doc-enter {
-  animation: rise 0.3s var(--ease) both;
+  animation: settle 0.4s var(--spring) both;
 }
 
 .answer.has-notes .slip {
-  animation: rise 0.35s var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 60ms + 120ms);
+  animation: settle 0.42s var(--spring) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 120ms);
 }
 
 .view-enter {
-  animation: fade 0.25s ease-out both;
+  animation: fade 0.28s ease-out both;
 }
 
+/* The opening page arrives in reading order with a gentle stagger. */
 #upload-view > * {
-  animation: rise 0.5s var(--ease) both;
+  animation: settle 0.55s var(--spring) both;
 }
 
-#upload-view > .intro-title { animation-delay: 60ms; }
-#upload-view > .intro-body { animation-delay: 120ms; }
-#upload-view > .dropzone { animation-delay: 180ms; }
-#upload-view > .features { animation-delay: 240ms; }
-#upload-view > .privacy-note { animation-delay: 300ms; }
+#upload-view > .eyebrow-badge { animation-delay: 40ms; }
+#upload-view > .intro-title { animation-delay: 110ms; }
+#upload-view > .intro-body { animation-delay: 190ms; }
+#upload-view > .dropzone { animation-delay: 270ms; }
+#upload-view > .features { animation-delay: 350ms; }
+#upload-view > .privacy-note { animation-delay: 420ms; }
 
 .reading-card {
   animation: rise 0.35s var(--ease) both;
@@ -1468,8 +1572,8 @@ button.cite:hover {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #30A46C;
-  box-shadow: 0 0 0 3px color-mix(in srgb, #30A46C 20%, transparent);
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
 }
 
 .scope-label.scope-empty {
@@ -1717,9 +1821,14 @@ body.busy .follow-up {
 }
 
 /* ---------- Footer ----------
-   One compact row (the top bar already names the app): the credit, live
-   AI-provider status, then the links and the version. It wraps to two short
-   rows on narrow screens, never more. */
+   A real footer: it closes the opening page like a colophon (credit, the
+   stack it's built on, links, version), reached by scrolling. In a
+   conversation it steps aside -- the composer is the floor -- and the version
+   and provider health move to the top bar. */
+
+body[data-view="chat"] .site-footer {
+  display: none;
+}
 
 .site-footer {
   flex: none;
@@ -1729,7 +1838,7 @@ body.busy .follow-up {
   align-items: center;
   justify-content: space-between;
   gap: 6px 20px;
-  padding: 9px max(24px, calc((100% - 1440px) / 2 + 24px));
+  padding: 16px max(24px, calc((100% - 1440px) / 2 + 24px));
   border-top: 1px solid var(--border);
   background: var(--surface);
   font-size: var(--text-sm);
@@ -1774,13 +1883,13 @@ body.busy .follow-up {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #30A46C;
-  box-shadow: 0 0 0 3px color-mix(in srgb, #30A46C 18%, transparent);
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent);
 }
 
 .provider[data-state="cooling"] .provider-dot {
-  background: #E5A000;
-  box-shadow: 0 0 0 3px color-mix(in srgb, #E5A000 18%, transparent);
+  background: var(--mark-edge);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark-edge) 22%, transparent);
   animation: breathe 1.6s ease-in-out infinite;
 }
 
@@ -1855,7 +1964,7 @@ body.busy .follow-up {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #30A46C;
+  background: var(--success);
 }
 
 .version-badge:hover {
@@ -1971,10 +2080,26 @@ body.busy .follow-up {
 
   .topbar {
     padding: 10px 14px;
+    gap: 10px;
   }
 
+  /* The Fraunces wordmark is too wide for a crowded phone top bar; the logo
+     carries identity here, and the hero says the name in full. */
   .brand-name {
-    font-size: 0.925rem;
+    display: none;
+  }
+
+  /* GitHub becomes icon-only on phones to leave room for the status pill. */
+  .pill-link span {
+    display: none;
+  }
+
+  .pill-link {
+    padding: 7px;
+  }
+
+  .topbar-status {
+    padding: 5px 9px;
   }
 
   .layout {

@@ -1,6 +1,6 @@
 # Architecture — AI Document Assistant
 
-_Current as of v2.3.0._
+_Current as of v2.4.0._
 
 ## Overview
 
@@ -47,7 +47,10 @@ documented chunking evaluation stays valid.
    generic message; exception text is logged server-side only.
 
 2. **Frontend** (`static/index.html`, `static/style.css`, `static/app.js`)
-   Vanilla, no framework or build step. The design ("Modern product",
+   Vanilla, no framework or build step. The design ("Reading Room", v2.4.0 —
+   warm paper, Fraunces editorial serif for headlines, Inter for the UI, mono
+   numerals, one ink-green accent, amber reserved for citations; earlier
+   "Modern product",
    `DESIGN.md`, v2.1.0): a documents sidebar card and a conversation card;
    answers carry their retrieved passages as source cards beside them on
    wide screens (a CSS container

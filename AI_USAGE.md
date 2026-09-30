@@ -389,3 +389,19 @@ understood and explainable without AI help (the task requires it):
   most 30 pages) and verified on the server before shipping.
 - It reproduced the mobile footer and the broken thinking-panel collapse
   from screenshots and fixed both.
+
+## Version 2.4.0
+
+- The user said the footer was still "fixed" and the UI looked "AI type"
+  (generic). The assistant loaded the design-direction skill, checked the
+  current look against the anti-generic checklist, and found it *was* the
+  default-AI template (Inter + indigo + soft shadows + uniform fade-ups).
+- It committed to a named direction ("Reading Room") in DESIGN.md before
+  changing a pixel: warm paper, a self-hosted Fraunces editorial serif for
+  headlines, Inter for the UI, mono numerals, one ink-green accent, and amber
+  reserved only for citations.
+- The footer was made a real footer — an in-flow colophon on the opening page
+  (reached by scrolling), hidden in the conversation, with version and
+  provider health moved to the top bar.
+- Rendered and critiqued in a headless browser; caught and fixed the mobile
+  top bar wrapping the wordmark to three lines.

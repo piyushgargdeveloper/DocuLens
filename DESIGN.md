@@ -1,93 +1,73 @@
 # Design Direction
 
-Rewritten for v2.1.0. The earlier "Annotated Margin" direction (v1.4–v2.0:
-ink on paper, serif answers, no UI colour) read as too plain in use — the
-footer and the controls didn't look like a finished product. The owner chose
-a new direction from three options; this document records it. When a visual
-decision is hard, this document decides it.
+Rewritten for v2.4.0. The v2.1–v2.3 "Modern product" look was honest but,
+by its own author's admission, generic: Inter everywhere, an indigo accent
+(`#5B5BD6`), 12px radius on everything, soft shadows, fade-up entrances — the
+exact conjunction the anti-generic checklist calls the default-AI template.
+This direction keeps the app's clarity but gives it a point of view, so it
+reads as *made*, not *generated*.
 
 ## Brief
 
-- **Purpose:** let someone check an answer against the document in one
-  glance. The answer and the passage it came from must be visible together.
-- **Audience:** students and reviewers reading on a laptop or phone,
-  skeptical of AI answers, wanting proof rather than prose.
-- **Tone:** clean, confident, calm — a tool you'd trust at work.
-  **Not:** playful, glossy, "AI-glow".
+- **Purpose:** check an AI answer against the document in one glance — the
+  answer and the passage it came from, together, with its page.
+- **Audience:** students and reviewers, skeptical of AI, wanting proof.
+- **Tone:** an editor's reading room — considered, literate, warm. **Not:** a
+  SaaS dashboard, an "AI startup" landing page, a cold grey admin panel.
 - **Constraints:** vanilla HTML/CSS/JS, no build step; WCAG AA; works at
-  375px; untrusted document text is only ever inserted as text; nothing
-  loaded from other origins (fonts are self-hosted).
+  360px; untrusted text only ever inserted as text; nothing from other
+  origins (fonts self-hosted).
 
-# Modern Product
+# Reading Room
 
-The reference is a well-made SaaS tool in the Notion/Linear family: quiet
-neutral surfaces, one accent colour used with intent, depth from hairline
-borders and soft shadows rather than gradients.
+The reference is a study desk in a good library: warm paper, a serif that
+was *drawn* rather than defaulted-to, and one confident ink. The interface
+should feel like reading a well-set journal where every claim carries its
+footnote — because that is exactly what the product does.
 
-**Surfaces.** A light zinc page holds two white cards: the documents sidebar
-on the left and the conversation on the right. Cards have a 1px border, a
-16px radius and a soft shadow; nothing is nested more than one card deep.
-Dark mode swaps to near-black surfaces with the same structure.
+**Type carries the character.** Headlines, the wordmark and every section
+label are set in **Fraunces** — a high-contrast "old-style" display serif
+with optical sizing and a deliberate wonk, so a headline has voice instead
+of the flat Inter grotesque every AI page ships. The interface and answers
+stay in **Inter** for legibility, and all numerals — page citations,
+similarity scores, the version — are set in a monospace so figures line up
+like a ledger. The jump from the body to the Fraunces headline is large and
+intentional (6×+), the single loudest signal that a person chose this.
 
-**Colour.** Zinc neutrals for everything structural and one iris accent
-(`#5B5BD6`, lighter in dark mode) for what the reader acts on or should
-notice: the primary button, the reader's question bubble, send, focus rings,
-citation chips. Highlighter yellow is kept for exactly one job — the source
-passage a clicked citation points to — so yellow still means "this is the
-evidence". Green is only a status dot (what's being searched, the live
-version). The footer's heart is red.
+**Colour is warm, not grey.** The neutral ramp is tinted paper — warm
+off-whites and a near-black that leans brown, never the cold zinc of the
+default. There is exactly one accent, an **ink green** (`#15725A`) for
+everything the reader acts on: the primary button, the send control, focus,
+links. It is defensibly *not* blue and not indigo. And there is one reserved
+signal — **highlighter amber** — used nowhere except where the document is
+being cited: the `p. N` chips and the source they point to. Because amber
+means "evidence" and nothing else, the eye learns it instantly.
 
-**Type.** Inter (self-hosted variable font) everywhere, 15px body, tight
-negative tracking on the hero headline. Hierarchy comes from weight and
-colour (text / soft / faint), not from switching typefaces.
+**Structure stays honest.** Two surfaces — a documents rail and the
+conversation — on warm paper. The reader's question is an ink-green bubble;
+the answer sits under a small serif "AI" mark with its sources as cards
+beside it on wide screens, folded under on narrow ones. The composer is a
+single rounded field that floats above the paper. No glassmorphism, no
+gradient blobs, no three-equal-feature-card band for its own sake.
 
-**Conversation.** The reader's question is a right-aligned accent bubble;
-the assistant's reply sits on the left behind a small "AI" avatar, as plain
-readable text. On a wide conversation each answer has a **Sources** column
-of cards beside it (page, similarity, clamped passage); on a phone the
-cards fold under the answer behind "Show sources". Page citations inside
-the answer are small accent pills (`p. 3`); clicking one lights up its
-source card in yellow. Follow-ups ("Explain more simply", "Go deeper") and
-Copy are outlined pill buttons under the answer; suggested questions are a
-grid of small cards. An answer is read from its first line: when one
-arrives, the view scrolls to its question, not to the bottom.
+**The footer is a footer.** It is not a bar bolted to the bottom of the
+app. On the opening page it sits at the end of the page, reached by
+scrolling, the way a colophon closes a book: the credit, the stack it's
+built on, the version, the links. Inside a conversation it steps aside
+entirely — the composer is the floor of a chat — and the live provider and
+version move into the top bar.
 
-**Composer.** A floating rounded box with a soft shadow holds attach, the
-question and a round send button; it gains an accent focus ring. Send
-becomes Stop while an answer streams, and a thin accent caret marks where
-the next words land. Beneath it: a green dot with what will be searched,
-and keyboard hints (hidden on phones).
+**Motion is editorial, not decorative.** Things arrive the way a page is
+laid down: a slight settle with a soft spring, staggered for a list, never
+the uniform fade-up-on-everything. A citation chip inks in; hovering a
+source card lifts it and warms its border; the model's thinking shimmers
+while it streams. All of it obeys `prefers-reduced-motion`.
 
-**Start page.** Centred: an accent "eyebrow" badge, a large bold headline,
-a short explanation, a white drop card with an upload icon, three feature
-cards (Grounded / Multi-document / Private) and the privacy note. On a
-phone it scrolls rather than running under the footer.
+**Is not:** an indigo-accented SaaS template, a glassmorphism demo, a cold
+grey dashboard, or a plain ink-on-white text dump. Kills on sight: Inter
+headlines, indigo/blue primary buttons, gradient hero backgrounds, uniform
+fade-up motion, emoji section bullets.
 
-**Footer** (one compact row since v2.2.1, so the conversation keeps its
-height). The credit "Made with ❤️ by Piyush Garg"; the live **AI** providers
-(a green dot when available, a slowly pulsing amber dot while one cools down
-after a rate limit); the links (GitHub, Releases, Issues, Privacy — which
-opens a dialog) and the version badge. The app's name lives in the top bar,
-not repeated here. On narrow screens it wraps to two short rows.
-
-**Small comforts** (v2.2.0). A light / dark / system toggle in the top bar
-(remembered in this browser; applied before first paint by `theme.js`).
-Every answer ends with a quiet "Groq · gpt-oss-120b" tag naming who wrote
-it. Short confirmations (copied, exported, removed, theme) appear as a
-toast under the top bar instead of cluttering the conversation. Scrolling
-to an answer is smooth; scrolled away from the bottom, a round
-jump-to-latest button appears. While an answer is being prepared, two
-soft skeleton lines breathe under "Searching your documents…".
-
-**Motion** answers what the reader did: views fade in; the start page
-rises in reading order; messages, documents and source cards rise a few
-pixels into place (cards staggered); hover lifts cards and buttons by a
-pixel; the dialog pops in; the heart beats slowly. All of it is switched
-off under `prefers-reduced-motion`.
-
-**Is not:** a gradient-heavy "AI" landing page, a glassmorphism demo, or a
-dashboard of widgets. Kills on sight: gradients, glowing accents, more than
-one accent colour, cards inside cards, colour used only for decoration.
-
-**Signature move:** every answer carries its sources beside it, and
-clicking a `p. N` citation lights up the exact passage it came from.
+**Signature move:** Fraunces editorial headlines and amber-highlighter
+citations on warm paper — describable from memory, and findable in a folder
+of twenty AI-tool screenshots in under three seconds.

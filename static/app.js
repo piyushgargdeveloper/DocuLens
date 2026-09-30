@@ -1045,6 +1045,18 @@ async function refreshProviders() {
     providerList.appendChild(li);
   }
   footerProviders.hidden = false;
+
+  // The top bar mirrors overall provider health in the conversation view,
+  // where the footer is hidden. Ready if any provider is; down only if the
+  // status call returned providers but none is usable.
+  const readyCount = [...byName.values()].filter((e) => e.ready).length;
+  const topStatus = document.getElementById("topbar-status");
+  if (topStatus) {
+    topStatus.dataset.state = readyCount > 0 ? "ready" : "down";
+    const names = [...byName].map(([n, e]) => `${n} ${e.ready ? "✓" : "busy"}`).join(", ");
+    topStatus.title = `AI providers: ${names} · release notes`;
+    topStatus.hidden = false;
+  }
 }
 refreshProviders();
 setInterval(() => {
