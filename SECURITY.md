@@ -48,6 +48,12 @@ For context before reporting an issue, see the "Security notes" section of
 - The upload screen discloses that questions and relevant passages are sent
   to the LLM provider.
 - Dependencies are watched by Dependabot, and CodeQL scans every push.
+- The container runs as an unprivileged user (uid 10001), not root, so a
+  hypothetical code-execution bug in a dependency is not already root inside
+  the container (v2.2.2).
+- In deployment the app binds only to `127.0.0.1`; Nginx terminates TLS
+  (1.2/1.3 only), overwrites `X-Real-IP` with the real peer so the rate limit
+  can't be spoofed, and answers HTTPS only for the site's own hostname.
 
 ## Reporting a vulnerability
 

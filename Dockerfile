@@ -24,6 +24,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Run as an unprivileged user, not root: defence in depth, so a hypothetical
+# code-execution bug in a dependency isn't already root inside the container.
+# The MiniLM model is fetched on first use, so its cache dir must be writable
+# by that user (HF_HOME); /tmp, used by Starlette to spool large uploads, is
+# world-writable already.
+ENV HF_HOME=/app/.cache/huggingface XDG_CACHE_HOME=/app/.cache
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /app/.cache/huggingface \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 
 # Docker marks the container unhealthy if the app stops answering (no LLM call).

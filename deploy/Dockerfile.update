@@ -18,5 +18,14 @@ COPY . .
 # Old font files from earlier releases live on in the base image; drop them.
 RUN rm -f static/fonts/atkinson-hyperlegible-*.woff2 static/fonts/source-serif-4-variable.woff2
 
+# Run as an unprivileged user, not root (defence in depth). The base image ran
+# as root, so /app is chowned; the MiniLM model is fetched on first use, so its
+# cache dir (HF_HOME) must be writable by that user.
+ENV HF_HOME=/app/.cache/huggingface XDG_CACHE_HOME=/app/.cache
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /app/.cache/huggingface \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # Docker marks the container unhealthy if the app stops answering (no LLM call).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"
