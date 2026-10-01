@@ -4,7 +4,7 @@
 
 Releases are tagged on `main` (`vX.Y.Z`, see the GitHub Releases page),
 but there are no maintained release branches. Only the latest release —
-which is what runs at https://ai-doc-assistant.duckdns.org — is
+which is what runs at https://doculens.duckdns.org — is
 supported. Security fixes land on `main` and ship as a new patch release.
 
 ## What this project already does

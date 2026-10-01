@@ -1,10 +1,10 @@
-# AI Document Assistant
+# DocuLens — An AI Powered Document Assistant
 
 A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://ai-doc-assistant.duckdns.org — **Latest release:** v2.5.0
+**Live:** https://doculens.duckdns.org — **Latest release:** v3.0.0
 
 ## What it does
 
@@ -233,7 +233,7 @@ passages beside it so you can check.
 Requires Python 3.10+ (developed and tested on Python 3.14).
 
 ```bash
-git clone https://github.com/piyushgargog/ai-document-assistant.git
+git clone https://github.com/piyushgargog/DocuLens.git
 cd ai-document-assistant
 python -m venv venv
 
@@ -517,7 +517,7 @@ python retrieval_eval.py --output reports/retrieval_eval.md --chart reports/retr
 
 ### Live deployment
 
-Running at **https://ai-doc-assistant.duckdns.org** — an AWS EC2 `t3.small` (2 vCPU, 2GiB
+Running at **https://doculens.duckdns.org** — an AWS EC2 `t3.small` (2 vCPU, 2GiB
 RAM, Free Tier eligible), region `ap-south-1` (Mumbai), verified working
 end-to-end (upload → indexing → grounded answer with source citation →
 follow-up → correct refusal on an unanswerable question → remove/re-upload,
@@ -534,7 +534,7 @@ reverse proxy in front (`client_max_body_size 25m` to match the app's
 upload limit, generous proxy timeouts for LLM calls) forwarding to the
 container's internal `127.0.0.1:8000`. HTTPS is terminated by Nginx
 using a Let's Encrypt certificate (via Certbot) for the
-`ai-doc-assistant.duckdns.org` domain (DuckDNS), with plain HTTP on
+`doculens.duckdns.org` domain (DuckDNS), with plain HTTP on
 that domain redirected to HTTPS. Ports 80, 443 (public) and 22 (SSH,
 restricted to a specific IP) are open in the security group — no
 Elastic IP, load balancer, NAT gateway, or RDS were created; the

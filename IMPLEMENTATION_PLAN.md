@@ -1,4 +1,4 @@
-# Implementation Plan — AI Document Assistant
+# Implementation Plan — DocuLens
 
 Each phase should be independently runnable/testable before moving to the
 next. Phases 0–7 deliver all core requirements; 8–9 are testing and docs;

@@ -6,10 +6,10 @@
 # image: same base and dependencies, the new application code, any requirement
 # floors that changed, and security upgrades of the base tooling.
 #
-#   docker build -f deploy/Dockerfile.update -t ai-document-assistant:vX.Y.Z .
+#   docker build -f deploy/Dockerfile.update -t doculens:vX.Y.Z .
 #
 # The full, from-scratch build remains ../Dockerfile.
-FROM ai-document-assistant:prod
+FROM doculens:prod
 WORKDIR /app
 # OCR engine for scanned PDFs (see pdf_loader.py); English data only.
 RUN apt-get update \

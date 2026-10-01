@@ -1,4 +1,4 @@
-# AI Usage — AI Document Assistant
+# AI Usage — DocuLens
 
 Honest, running record of how an AI coding assistant was used while
 building this project. Updated as work progresses — not written once at
@@ -405,3 +405,11 @@ understood and explainable without AI help (the task requires it):
   provider health moved to the top bar.
 - Rendered and critiqued in a headless browser; caught and fixed the mobile
   top bar wrapping the wordmark to three lines.
+
+## Version 3.0.0
+
+- The user rebranded the project to **DocuLens**. The assistant renamed the
+  GitHub repo, updated the git remote, rebranded every user-facing string and
+  in-repo link (repo + domain), renamed the Docker image/container, moved the
+  live site to doculens.duckdns.org, and renamed the local folder — verifying
+  the test suite stayed green throughout.

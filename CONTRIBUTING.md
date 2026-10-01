@@ -1,4 +1,4 @@
-# Contributing to AI Document Assistant
+# Contributing to DocuLens
 
 Thanks for your interest in this project. It's a personal/portfolio project
 maintained by Piyush Garg in spare time,
@@ -16,7 +16,7 @@ you're not re-litigating something already decided for a documented reason.
 ## Development setup
 
 ```bash
-git clone https://github.com/piyushgargog/ai-document-assistant.git
+git clone https://github.com/piyushgargog/DocuLens.git
 cd ai-document-assistant
 python -m venv venv
 

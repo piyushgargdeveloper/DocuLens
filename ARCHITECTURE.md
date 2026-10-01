@@ -1,6 +1,6 @@
-# Architecture — AI Document Assistant
+# Architecture — DocuLens
 
-_Current as of v2.5.0._
+_Current as of v3.0.0._
 
 ## Overview
 

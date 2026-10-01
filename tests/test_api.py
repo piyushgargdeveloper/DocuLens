@@ -29,7 +29,7 @@ def client():
 def test_index_page_served(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert "AI Document Assistant" in response.text
+    assert "DocuLens" in response.text
 
 
 def test_ingest_accepts_a_plain_text_file(client):
@@ -132,7 +132,7 @@ def test_second_upload_adds_a_document_to_the_same_session(client, sample_pdf_by
     assert second.status_code == 200
     assert "session_id" not in second.cookies  # existing session reused, not replaced
     names = [d["filename"] for d in second.json()["documents"]]
-    assert names == ["a.pdf", "a.pdf (2)"]
+    assert names == ["a.pdf", "a (2).pdf"]
     assert first.json()["id"] != second.json()["id"]
 
 
@@ -261,7 +261,7 @@ def test_page_shows_the_same_version_as_the_app():
 def test_footer_credits_the_author_and_links_the_repository(client):
     html = client.get("/").text
     assert "Made with" in html and "Piyush Garg" in html
-    assert 'href="https://github.com/piyushgargog/ai-document-assistant"' in html
+    assert 'href="https://github.com/piyushgargog/DocuLens"' in html
 
 
 def test_suggestions_for_a_loaded_document(client, sample_pdf_bytes, monkeypatch):

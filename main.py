@@ -1,4 +1,4 @@
-"""FastAPI backend for the AI Document Assistant.
+"""FastAPI backend for DocuLens — An AI Powered Document Assistant.
 
 Wraps the RAG pipeline (pdf_loader -> chunker -> embedder -> vector_store ->
 llm_client -> pipeline) with a minimal HTTP API and serves the static
@@ -36,7 +36,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The release version. static/index.html repeats it (asset ?v= query, footer,
 # release link) and tests/test_api.py fails if the two ever disagree.
-APP_VERSION = "2.5.0"
+APP_VERSION = "3.0.0"
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
@@ -121,7 +121,7 @@ async def lifespan(app: FastAPI):
 # The interactive API docs (/docs, /redoc, /openapi.json) are off: they would
 # publish a map of every endpoint, and nothing here needs them in production.
 app = FastAPI(
-    title="AI Document Assistant",
+    title="DocuLens",
     version=APP_VERSION,
     lifespan=lifespan,
     docs_url=None,
@@ -341,13 +341,20 @@ def _documents(session: Session) -> list[dict]:
 
 
 def _unique_name(session: Session, filename: str) -> str:
-    """Filenames label sources in answers, so two uploads of 'notes.pdf'
-    become 'notes.pdf' and 'notes.pdf (2)'."""
+    """Filenames label sources in answers *and* select the document loader by
+    extension, so a duplicate inserts its counter before the extension: two
+    uploads of 'notes.pdf' become 'notes.pdf' and 'notes (2).pdf' (not
+    'notes.pdf (2)', which would no longer end in .pdf)."""
     taken = {s.name for s in session.docs.values()}
-    name, n = filename, 2
-    while name in taken:
-        name, n = f"{filename} ({n})", n + 1
-    return name
+    if filename not in taken:
+        return filename
+    stem, dot, ext = filename.rpartition(".")
+    base = stem if dot else filename
+    suffix = f".{ext}" if dot else ""
+    n = 2
+    while f"{base} ({n}){suffix}" in taken:
+        n += 1
+    return f"{base} ({n}){suffix}"
 
 
 def _clean_filename(raw: str | None) -> str:

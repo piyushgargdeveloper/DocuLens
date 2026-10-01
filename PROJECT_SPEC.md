@@ -1,11 +1,11 @@
-# Project Specification — AI Document Assistant
+# Project Specification — DocuLens
 
 This document defines the requirements this project is built to satisfy: a
 small, self-contained RAG (Retrieval-Augmented Generation) tool for asking
 grounded questions about uploaded PDFs. It started as a single-document
 tool; the optional enhancements listed originally (multiple documents,
 conversation history, document summary) have since been built and are now
-part of the requirements below. _Current as of v2.3.0._
+part of the requirements below. _Current as of v3.0.0._
 
 ## Problem
 

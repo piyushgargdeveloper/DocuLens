@@ -1,5 +1,5 @@
 /**
- * AI Document Assistant -- frontend logic.
+ * DocuLens -- frontend logic.
  *
  * Talks to the FastAPI backend (main.py) at /api/ingest, /api/ask/stream
  * (server-sent events), /api/summary, /api/suggestions, /api/remove,
@@ -929,7 +929,7 @@ function syncExport() {
 function exportConversation() {
   const date = new Date().toISOString().slice(0, 10);
   const lines = [
-    "# Conversation — AI Document Assistant",
+    "# Conversation — DocuLens",
     "",
     `Exported ${date}. Documents: ${loadedDocs.map((d) => d.filename).join(", ") || "none"}.`,
   ];

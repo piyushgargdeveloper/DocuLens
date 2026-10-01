@@ -56,8 +56,8 @@ KNOWN = {
         "keys": ("OPENROUTER_API_KEY",),
         # Optional attribution headers OpenRouter asks apps to send.
         "headers": (
-            ("HTTP-Referer", "https://ai-doc-assistant.duckdns.org"),
-            ("X-Title", "AI Document Assistant"),
+            ("HTTP-Referer", "https://doculens.duckdns.org"),
+            ("X-Title", "DocuLens"),
         ),
     },
     "nvidia": {
