@@ -40,7 +40,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The release version. static/index.html repeats it (asset ?v= query, footer,
 # release link) and tests/test_api.py fails if the two ever disagree.
-APP_VERSION = "3.1.0"
+APP_VERSION = "3.1.1"
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB -- unchanged from the previous UI's limit
 MAX_QUESTION_CHARS = 1000  # unchanged from the previous UI's limit
@@ -186,19 +186,21 @@ async def request_context(request: Request, call_next):
     rid = request.headers.get("x-request-id", "")[:32] or new_request_id()
     token = request_id_var.set(rid)
     started = time.perf_counter()
+    path = request.url.path
     try:
         response = await call_next(request)
+        response.headers["X-Request-ID"] = rid
+        # Log while the id is still set so the line carries it (health checks
+        # excluded so the 30s Docker probe doesn't flood the log).
+        if path.startswith("/api/") and path != "/api/health":
+            ms = (time.perf_counter() - started) * 1000
+            log.info("%s %s -> %d (%.0fms)", request.method, path, response.status_code, ms)
+        return response
     except Exception:
-        log.exception("Unhandled error on %s %s", request.method, request.url.path)
+        log.exception("Unhandled error on %s %s", request.method, path)
         raise
     finally:
         request_id_var.reset(token)
-    response.headers["X-Request-ID"] = rid
-    path = request.url.path
-    if path.startswith("/api/") and path != "/api/health":
-        ms = (time.perf_counter() - started) * 1000
-        log.info("%s %s -> %d (%.0fms)", request.method, path, response.status_code, ms)
-    return response
 
 
 @dataclass
