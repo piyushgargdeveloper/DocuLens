@@ -50,6 +50,50 @@ function showView(view) {
       el.classList.add("view-enter");
     }
   }
+  if (changed) view === "indexing" ? startReadingFacts() : stopReadingFacts();
+}
+
+// While a document is being read, rotate a quiet fact about documents so the
+// wait feels alive and informative rather than blank.
+const DOC_FACTS = [
+  "“Document” comes from the Latin documentum — “a lesson, proof, or evidence.”",
+  "The PDF format was created by Adobe in 1993 and became an open ISO standard in 2008.",
+  "A single page of dense text holds roughly 500 words — about 3,000 characters.",
+  "The world’s oldest surviving printed book, the Diamond Sutra, dates to 868 AD.",
+  "Retrieval reads your whole document, then answers from only the most relevant passages.",
+  "Every answer here cites the page it came from — so you can always check the source.",
+  "Good chunking keeps sentences whole, so a passage never ends mid-thought.",
+  "Scanned pages with no text layer are read with OCR before anything is indexed.",
+  "A citation you can click is a citation you can trust — evidence beats eloquence.",
+  "The first email attachment was sent in 1992; the file outlived the message.",
+  "Embeddings turn each passage into a point in space, so similar ideas sit close together.",
+  "If the document doesn’t say it, a good assistant says so — instead of guessing.",
+];
+let _factTimer = 0;
+
+function startReadingFacts() {
+  const el = document.getElementById("reading-fact");
+  if (!el) return;
+  const pool = DOC_FACTS.slice();
+  const next = () => {
+    if (pool.length === 0) pool.push(...DOC_FACTS);
+    const fact = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    el.classList.remove("show");
+    // Let the fade-out run, then swap and fade in.
+    setTimeout(() => {
+      el.textContent = fact;
+      el.classList.add("show");
+    }, 180);
+  };
+  el.textContent = "";
+  next();
+  clearInterval(_factTimer);
+  _factTimer = setInterval(next, 3600);
+}
+
+function stopReadingFacts() {
+  clearInterval(_factTimer);
+  _factTimer = 0;
 }
 
 /**
@@ -767,27 +811,47 @@ async function uploadAdditional(file) {
   addNote(`Added ${data.filename}. Questions now search all ${data.documents.length} documents.`);
 }
 
-/** The LLM reads a sample of the document and proposes starter questions.
- *  Best-effort: on any error the conversation simply starts without them. */
-async function showSuggestions(docId) {
-  const data = await api("/api/suggestions", { id: docId });
-  if (data.error || !data.questions || data.questions.length === 0) return;
+// Generic starters shown instantly so "Try asking" never feels like it's
+// waiting on the model; they're replaced by tailored questions when ready.
+const STARTER_QUESTIONS = [
+  "What is this document about?",
+  "Summarize the key points.",
+  "What are the main topics covered?",
+];
 
+function makeSuggestion(question) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "suggestion";
+  button.textContent = question;
+  button.addEventListener("click", () => askQuestion(question));
+  return button;
+}
+
+/** Show starter questions immediately, then swap in the model's tailored ones
+ *  when they arrive. Best-effort: on any error the generic starters remain. */
+async function showSuggestions(docId) {
   const box = document.createElement("div");
   box.className = "msg suggestions";
   const label = document.createElement("p");
   label.className = "suggestions-label";
   label.textContent = "Try asking";
   box.appendChild(label);
-  for (const question of data.questions) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "suggestion";
-    button.textContent = question;
-    button.addEventListener("click", () => askQuestion(question));
-    box.appendChild(button);
-  }
+  const list = document.createElement("div");
+  list.className = "suggestion-list";
+  for (const q of STARTER_QUESTIONS) list.appendChild(makeSuggestion(q));
+  box.appendChild(list);
   append(box);
+
+  const data = await api("/api/suggestions", { id: docId });
+  if (data.error || !data.questions || data.questions.length === 0) return;
+  // Swap generic starters for the tailored ones with a soft cross-fade.
+  list.classList.add("swapping");
+  setTimeout(() => {
+    list.replaceChildren(...data.questions.map(makeSuggestion));
+    list.classList.remove("swapping");
+    scrollToBottom();
+  }, 160);
 }
 
 async function summarizeDoc(doc, button) {

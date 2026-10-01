@@ -584,9 +584,67 @@ body:not([data-view="chat"]) .shelf {
   font-size: var(--text-lg);
   line-height: 1.6;
   color: var(--text-soft);
-  margin: 0 0 30px;
+  margin: 0 0 26px;
   max-width: 56ch;
   text-wrap: pretty;
+}
+
+/* A small, honest preview of the signature: a question answered with its exact
+   pages cited. Illustrative (aria-hidden), styled like the real conversation. */
+.hero-demo {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 0 30px;
+  padding: 16px 18px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.hero-demo-cap {
+  margin: 0 0 8px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.hero-demo-q {
+  margin: 0 0 10px;
+  font-weight: 550;
+  color: var(--text);
+}
+
+.hero-demo-a {
+  display: flex;
+  gap: 10px;
+}
+
+.hero-demo-a p {
+  margin: 1px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.hero-demo-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 0.58rem;
+  font-weight: 650;
+}
+
+/* Non-interactive citation chip used only in the hero preview. */
+.cite-static {
+  margin-left: 4px;
 }
 
 .dropzone {
@@ -745,6 +803,49 @@ body:not([data-view="chat"]) .shelf {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--text-faint);
+}
+
+/* A slim indeterminate bar so the wait reads as progress, not a hang. */
+.reading-progress {
+  width: 100%;
+  max-width: 260px;
+  height: 3px;
+  margin: 18px 0 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.reading-progress > span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: reading-slide 1.3s ease-in-out infinite;
+}
+
+@keyframes reading-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+/* A rotating fact about documents, to make the wait feel alive. */
+.reading-fact {
+  margin: 14px 0 0;
+  min-height: 2.6em;
+  max-width: 42ch;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-soft);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.reading-fact.show {
+  opacity: 1;
+  transform: none;
 }
 
 .spinner {
@@ -1251,6 +1352,17 @@ ul.md-list li::marker {
   animation: spin 0.9s linear infinite;
 }
 
+/* While actively thinking, a faint accent border draws a glance; when done the
+   spark settles to a quiet dot. */
+.thinking.live {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+
+.thinking-done .thinking-spark {
+  background: var(--text-faint);
+  animation: none;
+}
+
 .thinking.live .thinking-label {
   background: linear-gradient(90deg, var(--text-faint) 25%, var(--text) 50%, var(--text-faint) 75%) 0 0 / 200% 100%;
   -webkit-background-clip: text;
@@ -1290,7 +1402,7 @@ ul.md-list li::marker {
 }
 
 .thinking.open .thinking-body {
-  max-height: 280px;
+  max-height: 320px;
 }
 
 .thinking-text {
@@ -1770,22 +1882,31 @@ body.drop-target .sheet-chat::after {
   animation: fade 0.15s ease-out both;
 }
 
-/* Starter questions the LLM proposes after reading the document. */
+/* Starter questions: generic ones appear instantly, then the model's tailored
+   ones cross-fade in (see showSuggestions). */
 .suggestions {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   max-width: 760px;
   padding-left: 42px;
 }
 
+.suggestion-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+  transition: opacity 0.16s ease;
+}
+
+.suggestion-list.swapping {
+  opacity: 0;
+}
+
 .suggestions-label {
-  grid-column: 1 / -1;
   margin: 0;
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
   color: var(--text-faint);
 }
 

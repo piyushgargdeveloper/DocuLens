@@ -478,3 +478,9 @@ date, what changed, why, and what (if anything) failed._
   - **Type:** self-hosted **Newsreader** (Tiempos-register serif, OFL) for the hero headline, drop/reading prompts and wordmark at *light* weights; **Inter** for all UI/body/answers. Dropped mono from labels/citations/version (kept it only for answer code). Removed the blue accent + the Inter-only scheme from v3.3.0.
   - **Shape/space:** rounding 10/16/24 (controls/panels/cards), generous spacing, flat depth (borders + soft shadow). Black `--primary` token added (light in dark mode). Spinner still turns under reduced motion.
   - Verified headless (light + dark), 0 console errors, 120 tests pass. (This supersedes v3.3.0's blue "Clean Minimal" at the owner's request to match Claude.ai specifically.)
+- **2026-10-01** — v3.5.0: UX polish pass. Several small touches to make the product feel faster and more alive:
+  - **Reading screen:** added a slim indeterminate progress bar and a rotating fact *about documents* (changes every ~3.6s with a fade) so the indexing wait reads as informative progress, not a hang.
+  - **"Try asking" feels instant:** three generic starter questions now render immediately when a document opens, then cross-fade to the model's tailored suggestions when they arrive (previously the whole strip waited on the LLM call).
+  - **Thinking module:** a faint accent border while actively thinking, the spark settles to a quiet dot when done, and a taller reasoning panel.
+  - **Catchier landing:** broader headline (documents, not just PDFs) and a small, honest example card showing the signature — a question answered with its exact pages cited (terracotta chips), i.e. the product's value at a glance.
+  - All frontend; verified headless, 0 console errors, 120 tests pass.

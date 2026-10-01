@@ -13,9 +13,9 @@
   <meta property="og:url" content="https://doculens.duckdns.org/" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%235B5BD6%22/><path d=%22M10 8h8l5 5v11H10z%22 fill=%22white%22/><rect x=%2213%22 y=%2216%22 width=%227%22 height=%222.4%22 rx=%221%22 fill=%22%23FFD43B%22/></svg>" />
   <!-- ?v= changes with each release so browsers holding an older cached copy fetch the new file. -->
-  <link rel="stylesheet" href="/static/style.css?v=3.4.0" />
+  <link rel="stylesheet" href="/static/style.css?v=3.5.0" />
   <!-- Applies a saved light/dark choice before first paint (no flash). -->
-  <script src="/static/theme.js?v=3.4.0"></script>
+  <script src="/static/theme.js?v=3.5.0"></script>
 </head>
 <body data-view="upload">
   <header class="topbar">
@@ -26,9 +26,9 @@
       <span class="brand-name">DocuLens</span>
     </a>
     <nav class="topbar-links" aria-label="Project links">
-      <a class="topbar-status" id="topbar-status" href="https://github.com/piyushgargog/DocuLens/releases/tag/v3.4.0" target="_blank" rel="noopener" title="AI providers · release notes" hidden>
+      <a class="topbar-status" id="topbar-status" href="https://github.com/piyushgargog/DocuLens/releases/tag/v3.5.0" target="_blank" rel="noopener" title="AI providers · release notes" hidden>
         <span class="topbar-status-dot" id="topbar-status-dot" aria-hidden="true"></span>
-        <span class="topbar-status-label">v3.4.0</span>
+        <span class="topbar-status-label">v3.5.0</span>
       </a>
       <button type="button" class="theme-btn" id="theme-btn" data-choice="system" aria-label="Theme: match system" title="Theme: match system">
         <svg class="icon icon-system" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
@@ -76,12 +76,20 @@
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /></svg>
           Grounded answers, every page cited
         </span>
-        <h1 class="intro-title">Ask your PDFs anything.<br />See exactly where each answer came from.</h1>
+        <h1 class="intro-title">Ask your documents anything.<br />See the exact page behind every answer.</h1>
         <p class="intro-body">
-          Upload a document and ask questions in plain language. Answers use only
-          the document's text, with the passage behind each one right beside it.
-          If the document doesn't say, you'll be told so instead of a guess.
+          Upload a PDF, Word file, text or Markdown and ask in plain language.
+          Answers use only the document's own text — with the passage behind each
+          one right beside it. If the document doesn't say, you'll be told so.
         </p>
+        <div class="hero-demo" aria-hidden="true">
+          <p class="hero-demo-cap">For example</p>
+          <p class="hero-demo-q">What were the main findings?</p>
+          <div class="hero-demo-a">
+            <span class="hero-demo-mark">AI</span>
+            <p>The method improved accuracy by about 23% over the baseline<span class="cite cite-static">p. 4</span>, with the largest gains on longer documents<span class="cite cite-static">p. 7</span>.</p>
+          </div>
+        </div>
         <label for="file-input" class="dropzone" id="dropzone" tabindex="0" role="button">
           <span class="dropzone-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
@@ -112,8 +120,10 @@
       <section id="indexing-view" class="title-page" hidden>
         <div class="reading-card">
           <span class="spinner spinner-lg" aria-hidden="true"></span>
-          <p class="reading-line" role="status"><span id="reading-name">Reading your PDF&hellip;</span></p>
-          <p class="reading-sub">Extracting text, splitting it into passages and indexing them for search.</p>
+          <p class="reading-line" role="status"><span id="reading-name">Reading your document&hellip;</span></p>
+          <p class="reading-sub">Extracting the text, splitting it into passages and indexing them for search.</p>
+          <div class="reading-progress" aria-hidden="true"><span></span></div>
+          <p class="reading-fact" id="reading-fact"></p>
         </div>
       </section>
 
@@ -166,7 +176,7 @@
       <a href="https://github.com/piyushgargog/DocuLens/releases" target="_blank" rel="noopener">Releases</a>
       <a href="https://github.com/piyushgargog/DocuLens/issues" target="_blank" rel="noopener">Issues</a>
       <button type="button" class="footer-link-button" id="privacy-btn">Privacy</button>
-      <a class="version-badge" href="https://github.com/piyushgargog/DocuLens/releases/tag/v3.4.0" target="_blank" rel="noopener" title="Release notes">v3.4.0</a>
+      <a class="version-badge" href="https://github.com/piyushgargog/DocuLens/releases/tag/v3.5.0" target="_blank" rel="noopener" title="Release notes">v3.5.0</a>
     </nav>
   </footer>
 
@@ -215,6 +225,6 @@
     </li>
   </template>
 
-  <script src="/static/app.js?v=3.4.0"></script>
+  <script src="/static/app.js?v=3.5.0"></script>
 </body>
 </html>
