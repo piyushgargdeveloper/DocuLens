@@ -145,14 +145,16 @@ function addError(text) {
   return append(el);
 }
 
-// Models often wrap key phrases in **bold**. Text is shown as plain text (no
-// markdown rendering, by design), so drop the markers instead of showing
-// literal asterisks.
+// Plain-text flattening of an answer, for Copy / Export (no DOM).
 function plain(text) {
   return delatex(text)
+    .replace(/```[^\n]*\n?/g, "")
+    .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*(.+?)\*\*/g, "$1")
-    // Markdown list markers ("* item", "- item") become real bullets.
-    .replace(/^([ \t]*)[*-][ \t]+/gm, "$1• ");
+    .replace(/(^|[\s(])[*_](?=\S)([^*_\n]+?)[*_](?=[\s).,!?:;]|$)/g, "$1$2")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^([ \t]*)[*\-•][ \t]+/gm, "$1• ")
+    .replace(/^([ \t]*)(\d+)\.[ \t]+/gm, "$1$2. ");
 }
 
 // The prompt asks for plain text, but models (especially smaller fallback
@@ -195,36 +197,172 @@ function citedPages(inner) {
   return { doc: /page/i.test(doc) ? "" : doc, pages: [...new Set(pages)] };
 }
 
-/**
- * Fill `container` with the answer text, replacing citations with page tabs.
- * A tab whose page is among this answer's sources becomes a button that
- * opens the sources and highlights that passage.
- */
-function renderAnswerText(container, text, notes) {
-  text = plain(text);
+/** One citation (e.g. "report.pdf, Page 3") -> page chips appended to `el`.
+ *  A chip whose page is among this answer's sources is a button that opens
+ *  the sources and highlights the passage; otherwise it's a plain label. */
+function appendCitation(el, inner, notes) {
+  const { doc, pages } = citedPages(inner);
+  if (pages.length === 0) return false;
+  for (const page of pages) {
+    const slip = findSlip(notes, page, doc);
+    const tab = document.createElement(slip ? "button" : "span");
+    tab.className = "cite";
+    tab.textContent = `p. ${page}`;
+    tab.title = doc ? `${doc}, page ${page}` : `Page ${page}`;
+    if (slip) {
+      tab.type = "button";
+      tab.setAttribute("aria-label", `Show the passage from ${tab.title}`);
+      tab.addEventListener("click", () => markSlip(notes, slip));
+    }
+    el.append(tab);
+  }
+  return true;
+}
+
+/** Inline **bold**, *italic* and `code` within one plain run -> text/strong/em/code nodes. */
+function appendFormatted(el, text) {
+  const INLINE = /\*\*(.+?)\*\*|`([^`]+)`|(?:^|(?<=[\s(]))[*_](\S(?:[^*_\n]*\S)?)[*_](?=[\s).,!?:;]|$)/g;
+  let last = 0;
+  for (const m of text.matchAll(INLINE)) {
+    if (m.index > last) el.append(text.slice(last, m.index));
+    if (m[1] !== undefined) {
+      const b = document.createElement("strong");
+      b.textContent = m[1];
+      el.append(b);
+    } else if (m[2] !== undefined) {
+      const c = document.createElement("code");
+      c.textContent = m[2];
+      el.append(c);
+    } else {
+      const i = document.createElement("em");
+      i.textContent = m[3];
+      el.append(i);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) el.append(text.slice(last));
+}
+
+/** Inline content with citations: split on citations, format the rest. */
+function appendInline(el, text, notes) {
   let last = 0;
   for (const match of text.matchAll(CITATION)) {
     const inner = match[1] ?? match[2] ?? match[3];
-    const { doc, pages } = citedPages(inner);
-    if (pages.length === 0) continue;
-
-    container.append(text.slice(last, match.index).replace(/\s+$/, ""));
-    for (const page of pages) {
-      const slip = findSlip(notes, page, doc);
-      const tab = document.createElement(slip ? "button" : "span");
-      tab.className = "cite";
-      tab.textContent = `p. ${page}`;
-      tab.title = doc ? `${doc}, page ${page}` : `Page ${page}`;
-      if (slip) {
-        tab.type = "button";
-        tab.setAttribute("aria-label", `Show the passage from ${tab.title}`);
-        tab.addEventListener("click", () => markSlip(notes, slip));
-      }
-      container.append(tab);
-    }
+    const before = text.slice(last, match.index);
+    if (citedPages(inner).pages.length === 0) continue;
+    appendFormatted(el, before.replace(/\s+$/, ""));
+    appendCitation(el, inner, notes);
     last = match.index + match[0].length;
   }
-  container.append(text.slice(last));
+  appendFormatted(el, text.slice(last));
+}
+
+/**
+ * Render the answer as rich (but strictly safe) Markdown into `container`:
+ * headings, bullet and numbered lists, code blocks, inline code, bold/italic,
+ * blockquotes, tables and rules — with page citations turned into chips.
+ * Every node is built with createElement + textContent, never innerHTML, so
+ * nothing in the model's (or document's) text can inject markup.
+ */
+function renderAnswerText(container, text, notes) {
+  const lines = delatex(text).replace(/\r\n/g, "\n").split("\n");
+  let i = 0;
+  const isUL = (l) => /^\s*[-*•]\s+/.test(l);
+  const isOL = (l) => /^\s*\d+[.)]\s+/.test(l);
+
+  while (i < lines.length) {
+    let line = lines[i];
+    if (!line.trim()) { i++; continue; }
+
+    // Fenced code block
+    if (/^\s*```/.test(line)) {
+      const body = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) body.push(lines[i++]);
+      i++;
+      const pre = document.createElement("pre");
+      const code = document.createElement("code");
+      code.textContent = body.join("\n");
+      pre.append(code);
+      container.append(pre);
+      continue;
+    }
+    // Heading
+    const h = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
+    if (h) {
+      const el = document.createElement(h[1].length <= 2 ? "h4" : "h5");
+      el.className = "md-h";
+      appendInline(el, h[2].trim(), notes);
+      container.append(el);
+      i++;
+      continue;
+    }
+    // Horizontal rule
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
+      container.append(document.createElement("hr"));
+      i++;
+      continue;
+    }
+    // Table (header row with pipes, then a separator row of ---)
+    if (line.includes("|") && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1]) && lines[i + 1].includes("-")) {
+      const cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      const table = document.createElement("table");
+      table.className = "md-table";
+      const thead = document.createElement("thead");
+      const htr = document.createElement("tr");
+      for (const c of cells(line)) { const th = document.createElement("th"); appendInline(th, c, notes); htr.append(th); }
+      thead.append(htr); table.append(thead);
+      i += 2;
+      const tbody = document.createElement("tbody");
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+        const tr = document.createElement("tr");
+        for (const c of cells(lines[i])) { const td = document.createElement("td"); appendInline(td, c, notes); tr.append(td); }
+        tbody.append(tr); i++;
+      }
+      table.append(tbody);
+      container.append(table);
+      continue;
+    }
+    // Blockquote
+    if (/^\s*>\s?/.test(line)) {
+      const bq = document.createElement("blockquote");
+      const parts = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) parts.push(lines[i++].replace(/^\s*>\s?/, ""));
+      appendInline(bq, parts.join(" "), notes);
+      container.append(bq);
+      continue;
+    }
+    // Lists (unordered / ordered)
+    if (isUL(line) || isOL(line)) {
+      const ordered = isOL(line);
+      const list = document.createElement(ordered ? "ol" : "ul");
+      list.className = "md-list";
+      while (i < lines.length && (ordered ? isOL(lines[i]) : isUL(lines[i]))) {
+        const li = document.createElement("li");
+        let item = lines[i].replace(ordered ? /^\s*\d+[.)]\s+/ : /^\s*[-*•]\s+/, "");
+        i++;
+        // Continuation lines (indented, not a new list item or blank).
+        while (i < lines.length && lines[i].trim() && !isUL(lines[i]) && !isOL(lines[i]) && /^\s+/.test(lines[i])) {
+          item += " " + lines[i].trim();
+          i++;
+        }
+        appendInline(li, item, notes);
+        list.append(li);
+      }
+      container.append(list);
+      continue;
+    }
+    // Paragraph: gather consecutive plain lines.
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !isUL(lines[i]) && !isOL(lines[i]) &&
+           !/^\s*(```|>|#{1,6}\s)/.test(lines[i])) {
+      para.push(lines[i++]);
+    }
+    const p = document.createElement("p");
+    p.className = "md-p";
+    appendInline(p, para.join(" "), notes);
+    container.append(p);
+  }
 }
 
 function findSlip(notes, page, doc) {
@@ -386,7 +524,7 @@ function startAnswer(el, sources, { heading, sourcesLabel = "Sources" } = {}) {
   const thinking = buildThinking();
   main.appendChild(thinking.wrap);
   const notes = buildNotes(sources, sourcesLabel);
-  const body = document.createElement("p");
+  const body = document.createElement("div");
   body.className = "msg-text";
   main.appendChild(body);
   el.appendChild(main);

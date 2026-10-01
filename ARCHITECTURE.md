@@ -1,6 +1,6 @@
 # Architecture — DocuLens
 
-_Current as of v3.1.0._
+_Current as of v3.2.0._
 
 ## Overview
 
