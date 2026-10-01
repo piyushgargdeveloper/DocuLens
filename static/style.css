@@ -1,13 +1,14 @@
 /*
- * "Clean Minimal" -- see DESIGN.md. A quiet, professional tool (Linear / Claude
- * register): neutral surfaces, Inter throughout, mono for numerals, one
- * restrained blue accent used sparingly for primary actions, links, focus and
- * citations. Depth from hairline borders and light shadows; motion is subtle.
+ * "Calm Light" -- see DESIGN.md. Modelled on Claude's own design language
+ * (reference: Claude Calm Light): quiet, editorial and spacious. Ink-black
+ * text and primary buttons, a warm near-white ground, a terracotta accent
+ * spent only on brand and small emphasis, a light serif for headlines and
+ * Inter for the interface. Depth from hairline ink borders and soft shadow.
  */
 
-/* Fonts are served from this site (static/fonts/, SIL Open Font License), not
-   Google Fonts, so a visit sends no request -- and no IP address -- to a third
-   party, and the Content-Security-Policy can allow fonts from 'self' only. */
+/* Fonts are served from this site (static/fonts/, OFL), not Google Fonts, so a
+   visit sends no request -- and no IP -- to a third party, and the CSP can
+   allow fonts from 'self' only. */
 @font-face {
   font-family: "Inter";
   font-style: normal;
@@ -16,51 +17,64 @@
   src: url("/static/fonts/inter-variable.woff2") format("woff2");
 }
 
-:root {
-  /* Clean, neutral surfaces -- minimal and professional, not decorative. */
-  --bg: #FBFBFC;
-  --surface: #FFFFFF;
-  --surface-2: #F4F4F5;
-  --surface-3: #ECECEE;
-  --border: #E7E7EA;
-  --border-strong: #D6D6DB;
-  --text: #18181B;
-  --text-soft: #5E5E66;
-  --text-faint: #9A9AA2;
-  /* One restrained accent, used sparingly (primary actions, links, focus,
-     citations). Everything else stays neutral. */
-  --accent: #2563EB;
-  --accent-hover: #1D4FD0;
-  --accent-soft: #EEF3FE;
-  --accent-soft-2: #DBE6FD;
-  --accent-text: #1A47C0;
-  --on-accent: #FFFFFF;
-  --mark: #FEF3C7;
-  --mark-edge: #E2B64B;
-  --danger: #DC2626;
-  --danger-soft: #FEF2F2;
-  --heart: #E23D53;
-  --success: #16A34A;
+/* Newsreader: a warm, literary text serif (Tiempos register) for headlines
+   and the wordmark, kept at light weights so it reads calm, not loud. */
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url("/static/fonts/newsreader-variable.woff2") format("woff2");
+}
 
-  --shadow-xs: 0 1px 2px rgba(24, 24, 27, 0.05);
-  --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.06), 0 1px 3px rgba(24, 24, 27, 0.04);
-  --shadow-md: 0 4px 12px -2px rgba(24, 24, 27, 0.08), 0 2px 4px rgba(24, 24, 27, 0.04);
-  --shadow-lg: 0 16px 40px -12px rgba(24, 24, 27, 0.18);
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+:root {
+  /* Warm near-white ground, clean white surfaces (Claude Calm Light). */
+  --bg: #FCFCFB;
+  --surface: #FFFFFF;
+  --surface-2: #F5F4F1;
+  --surface-3: #EEECE6;
+  --border: rgba(11, 11, 11, 0.10);
+  --border-strong: rgba(11, 11, 11, 0.18);
+  --text: #0B0B0B;
+  --text-soft: #6F6F6F;
+  --text-faint: #9A988F;
+  /* Terracotta accent -- brand and small emphasis only, never a surface. */
+  --accent: #C6613F;
+  --accent-hover: #B2532F;
+  --accent-soft: #F7EDE7;
+  --accent-soft-2: #EDD8CD;
+  --accent-text: #A1492B;
+  --on-accent: #FFFFFF;
+  /* Ink-black primary action (the strongest thing on screen). */
+  --primary: #0B0B0B;
+  --on-primary: #FFFFFF;
+  --mark: #F7EDE7;
+  --mark-edge: #C6613F;
+  --danger: #D92D20;
+  --danger-soft: #FDECEA;
+  --heart: #C6613F;
+  --success: #3C8C63;
+
+  --shadow-xs: 0 1px 2px rgba(11, 11, 11, 0.04);
+  --shadow-sm: 0 1px 2px rgba(11, 11, 11, 0.05), 0 1px 3px rgba(11, 11, 11, 0.03);
+  --shadow-md: 0 6px 20px -6px rgba(11, 11, 11, 0.10), 0 2px 5px rgba(11, 11, 11, 0.04);
+  --shadow-lg: 0 20px 48px -16px rgba(11, 11, 11, 0.16);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 
   --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --display: var(--font);
+  --display: "Newsreader", Georgia, "Times New Roman", serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
 
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-md: 0.9375rem;
   --text-lg: 1.0625rem;
-  --text-title: clamp(1.9rem, 1.3rem + 2.4vw, 2.8rem);
+  --text-title: clamp(2.2rem, 1.5rem + 3vw, 3.4rem);
 
-  --radius-sm: 7px;
-  --radius: 10px;
-  --radius-lg: 12px;
+  /* Rounding rhythm from the reference: controls 10, panels 16, cards 24. */
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 24px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --spring: cubic-bezier(0.2, 0.7, 0.2, 1);
 
@@ -72,27 +86,29 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     /* Warm dark: a lamp-lit desk, not a black void. */
-    --bg: #0B0B0C;
-    --surface: #151517;
-    --surface-2: #1E1E21;
-    --surface-3: #27272B;
-    --border: #2A2A2E;
-    --border-strong: #3A3A40;
-    --text: #ECECEE;
-    --text-soft: #A1A1AA;
-    --text-faint: #71717A;
-    --accent: #5B8CF5;
-    --accent-hover: #6E9BF7;
-    --accent-soft: #172338;
-    --accent-soft-2: #213457;
-    --accent-text: #93B4FA;
-    --on-accent: #0B0B0C;
-    --mark: #3A3214;
-    --mark-edge: #D4A94A;
-    --danger: #F87171;
-    --danger-soft: #2A1515;
-    --heart: #F06A7E;
-    --success: #5B8CF5;
+    --bg: #15130F;
+    --surface: #1C1A15;
+    --surface-2: #232019;
+    --surface-3: #2C281F;
+    --border: #2C2820;
+    --border-strong: #3A352A;
+    --text: #F2EFE8;
+    --text-soft: #A8A396;
+    --text-faint: #7A7568;
+    --accent: #E08763;
+    --accent-hover: #EB9674;
+    --accent-soft: #2A1D16;
+    --accent-soft-2: #3A281E;
+    --accent-text: #E79C7D;
+    --on-accent: #15130F;
+    --primary: #F2EFE8;
+    --on-primary: #15130F;
+    --mark: #2A1D16;
+    --mark-edge: #E08763;
+    --danger: #F07167;
+    --danger-soft: #2C1512;
+    --heart: #E08763;
+    --success: #E08763;
 
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -103,27 +119,29 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0B0B0C;
-  --surface: #151517;
-  --surface-2: #1E1E21;
-  --surface-3: #27272B;
-  --border: #2A2A2E;
-  --border-strong: #3A3A40;
-  --text: #ECECEE;
-  --text-soft: #A1A1AA;
-  --text-faint: #71717A;
-  --accent: #5B8CF5;
-  --accent-hover: #6E9BF7;
-  --accent-soft: #172338;
-  --accent-soft-2: #213457;
-  --accent-text: #93B4FA;
-  --on-accent: #0B0B0C;
-  --mark: #3A3214;
-  --mark-edge: #D4A94A;
-  --danger: #F87171;
-  --danger-soft: #2A1515;
-  --heart: #F06A7E;
-  --success: #5B8CF5;
+  --bg: #15130F;
+  --surface: #1C1A15;
+  --surface-2: #232019;
+  --surface-3: #2C281F;
+  --border: #2C2820;
+  --border-strong: #3A352A;
+  --text: #F2EFE8;
+  --text-soft: #A8A396;
+  --text-faint: #7A7568;
+  --accent: #E08763;
+  --accent-hover: #EB9674;
+  --accent-soft: #2A1D16;
+  --accent-soft-2: #3A281E;
+  --accent-text: #E79C7D;
+  --on-accent: #15130F;
+  --primary: #F2EFE8;
+  --on-primary: #15130F;
+  --mark: #2A1D16;
+  --mark-edge: #E08763;
+  --danger: #F07167;
+  --danger-soft: #2C1512;
+  --heart: #E08763;
+  --success: #E08763;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -327,7 +345,7 @@ a {
   border-radius: 999px;
   background: var(--surface);
   box-shadow: var(--shadow-xs);
-  font-family: var(--mono);
+  font-family: var(--font);
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--text-soft);
@@ -436,13 +454,13 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--primary);
+  color: var(--on-primary);
   box-shadow: var(--shadow-xs), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: #262626;
   box-shadow: var(--shadow-sm);
 }
 
@@ -554,11 +572,11 @@ body:not([data-view="chat"]) .shelf {
 
 .intro-title {
   font-family: var(--display);
-  font-weight: 560;
+  font-weight: 400;
   font-size: var(--text-title);
-  line-height: 1.02;
-  letter-spacing: -0.02em;
-  margin: 0 0 18px;
+  line-height: 1.12;
+  letter-spacing: -0.005em;
+  margin: 0 0 20px;
   text-wrap: balance;
 }
 
@@ -1019,7 +1037,6 @@ body:not([data-view="chat"]) .shelf {
 }
 
 .md-h {
-  font-family: var(--display);
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.01em;
@@ -1127,7 +1144,6 @@ ul.md-list li::marker {
 }
 
 .msg-heading {
-  font-family: var(--display);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1302,7 +1318,7 @@ ul.md-list li::marker {
 
 /* Page citation inside an answer: a clickable chip. */
 .cite {
-  font-family: var(--mono);
+  font-family: var(--font);
   font-size: 0.7rem;
   font-weight: 650;
   line-height: 1;
@@ -1624,12 +1640,12 @@ button.cite:hover {
 .composer-send {
   border-radius: 50%;
   color: var(--on-accent);
-  background: var(--accent);
+  background: var(--primary);
   box-shadow: var(--shadow-sm);
 }
 
 .composer-send:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: #262626;
   transform: translateY(-1px);
 }
 
@@ -2058,7 +2074,7 @@ body[data-view="chat"] .site-footer {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface-2);
-  font-family: var(--mono);
+  font-family: var(--font);
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--text-soft);

@@ -1,58 +1,60 @@
 # Design Direction
 
-Rewritten for v3.3.0. The v2.4–v3.2 "Reading Room" look (warm paper, a
-Fraunces editorial serif, ink-green accent, springy motion) had character but
-read as *fancy* — "trying too hard", closer to a styled demo than a tool you'd
-trust with work. This direction is the correction: **quiet, minimal,
-professional** — the register of Linear, Vercel and Claude — where the craft
-is in precision and restraint, not decoration.
+Rewritten for v3.4.0. The owner provided Claude's own exported design tokens
+("Claude Calm Light") as the reference and asked for DocuLens to adopt that
+language, applied with the frontend-design method. This document records the
+direction; the reference's words win wherever they are specific.
 
 ## Brief
 
 - **Purpose:** ask a document questions and see exactly where each answer came
-  from, with zero friction and nothing to distract.
-- **Audience:** students and reviewers who want a tool that feels real and
-  trustworthy, not a flashy toy.
-- **Tone:** calm, precise, understated. **Not:** decorative, "editorial",
-  playful, or over-animated.
+  from, calmly and with zero friction.
+- **Audience:** students and reviewers who trust a tool that feels considered
+  and intelligent, not marketing-heavy.
+- **Tone:** quiet, editorial, warm, spacious — Claude's register. **Not:**
+  loud, playful, gradient-y, or over-animated.
 - **Constraints:** vanilla HTML/CSS/JS, no build step; WCAG AA; works at
   360px; untrusted text only ever inserted as text; nothing from other origins.
 
-# Clean Minimal
+# Calm Light
 
-**Neutral by default, colour with intent.** Surfaces are a clean, near-white
-neutral ramp (and a true neutral dark), not warm cream. There is exactly one
-accent — a restrained blue (`#2563EB`) — and it is spent only where it earns
-attention: the primary button, the send control, links, the focus ring, and
-the page-citation chips. Everything structural stays greyscale, so the accent
-never feels loud.
+A faithful application of **Claude Calm Light**: an airy, editorial surface
+where ink and paper do the work and colour is spent only on identity.
 
-**One typeface, clear hierarchy.** Inter throughout — body, headings and the
-wordmark — with hierarchy from weight and size, not from a second display
-face. All numerals (page citations, similarity, version) are monospace so
-figures line up. No serif, no optical-size theatrics; the headline is simply
-Inter at a larger size with tight tracking.
+**Colour — ink, paper, one warm accent.** Text and the primary call to action
+are ink black (`#0B0B0B`). Surfaces are a warm near-white (`#FCFCFB`) and clean
+white, separated by hairline *translucent-ink* borders (`rgba(11,11,11,.10)`)
+rather than grey lines. The only chroma is a terracotta accent (`#C6613F`),
+spent on brand moments and small emphasis — the logo, the citation chips, the
+focus ring — never as a surface. Status greens/ambers are muted and functional.
 
-**Quiet surfaces.** Depth comes from hairline borders and light shadows, with
-small radii (7–12px). No gradients, no glassmorphism, no heavy drop shadows.
-The documents rail and the conversation are two plain cards on the page.
+**Type — a light serif voice over a clean sans.** Newsreader, a warm literary
+text serif (Tiempos register), carries the big editorial lines — the hero
+headline, the reading and drop prompts, the wordmark — at *light* weights so it
+reads calm, not loud. Inter carries everything the interface needs to say:
+body, labels, buttons, answers. No all-caps system labels, no mono small-data
+labels, no one-word accenting in headlines — the headline is simply the serif,
+whole, in sentence case.
 
-**The conversation reads like a good chat app.** The reader's question is a
-subtle neutral bubble on the right (not a loud colour); the answer sits under
-a small, monochrome "AI" mark and renders as proper Markdown — headings, lists,
-code, tables, bold — with page citations as small accent chips that open the
-exact source passage beside the answer. A clean composer floats at the bottom.
+**Layout — spacious and flat.** Generous negative space on a gentle rhythm
+(8 / 16 / 28 / 40 / 64). Depth comes from the hairline borders, soft shadow and
+whitespace, not elevation — a sheet of paper over a quiet ground. Controls and
+inputs round at 10px, panels at 16px, cards at 24px; full pills are reserved
+for chips.
 
-**Motion is subtle and functional.** Things fade and ease into place quickly;
-nothing springs, bounces, loops or beats. The one motion that must never stop
-is the loading spinner — it keeps turning even under `prefers-reduced-motion`,
-because a frozen spinner reads as broken.
+**Components.** The primary button is a solid ink-black CTA with white text
+(the strongest thing on screen); secondary actions are quiet and outlined;
+links are underlined ink. The conversation keeps a subtle neutral question
+bubble and a small monochrome "AI" mark; answers render as clean Markdown with
+terracotta page-citation chips that open the exact source beside them.
 
-**Is not:** a warm "editorial" theme, a serif-headline design, a gradient/
-glass "AI" landing page, or an over-animated showcase. Kills on sight: display
-serifs, decorative looping animation, more than one accent colour, heavy
-shadows, colour used where grey would do.
+**Motion.** Subtle and functional — things ease into place, nothing springs or
+loops. The one exception is the loading spinner, which keeps turning even under
+`prefers-reduced-motion` so it never reads as broken.
 
-**Signature restraint:** almost everything is neutral; the single blue accent
-and the page-citation chips are the only colour, so the eye always knows where
-to look and the tool feels calm and trustworthy.
+**Is not:** a loud SaaS UI, a neon-on-black theme, a gradient landing page, or
+a dense broadsheet. The single bold move is the light serif headline on warm
+paper; everything else stays quiet and disciplined.
+
+**Signature:** ink and warm paper with a single terracotta accent, and a calm
+serif headline — the Claude register, applied honestly to a document tool.
