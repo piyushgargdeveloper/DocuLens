@@ -22,6 +22,7 @@ credits or an unknown model for 15 minutes, timeouts and server errors for 30 se
 """
 
 import os
+import logging
 import threading
 import time
 from dataclasses import dataclass, field, replace
@@ -74,6 +75,8 @@ KNOWN = {
         "keys": ("HF_TOKEN", "HUGGINGFACE_API_KEY"),
     },
 }
+
+_log = logging.getLogger("doculens.providers")
 
 RATE_LIMIT_COOLDOWN_DEFAULT = 60.0
 RATE_LIMIT_COOLDOWN_MAX = 900.0
@@ -165,7 +168,7 @@ def cool_down(route: Route, seconds: float, reason: str) -> None:
     with _lock:
         _cooldown_until[route.id] = time.monotonic() + seconds
         _last_error[route.id] = reason
-    print(f"LLM provider {route.label} ({route.model}) unavailable: {reason}; skipping it for {seconds:.0f}s")
+    _log.warning("Provider %s (%s) unavailable: %s; skipping for %.0fs", route.label, route.model, reason, seconds)
 
 
 def mark_ok(route: Route) -> None:

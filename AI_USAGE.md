@@ -413,3 +413,10 @@ understood and explainable without AI help (the task requires it):
   in-repo link (repo + domain), renamed the Docker image/container, moved the
   live site to doculens.duckdns.org, and renamed the local folder — verifying
   the test suite stayed green throughout.
+
+## Version 3.1.0
+
+- Added observability (structured logging, per-request IDs, optional Sentry)
+  as the production-hardening step, keeping user document content out of logs
+  and error reports. Re-tested the live site from a Kali box with nmap/nikto/
+  sslscan and found no vulnerabilities.

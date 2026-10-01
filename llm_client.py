@@ -12,10 +12,14 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
+import logging
+
 import requests
 
 import providers
 from providers import Route
+
+_log = logging.getLogger("doculens.llm")
 
 MAX_RETRIES = 3
 DEFAULT_RETRY_WAIT_SECONDS = 5.0
@@ -409,7 +413,7 @@ def _record_failure(route: Route, exc: LLMRequestError) -> None:
     else:
         # Another 4xx is about this request (e.g. too long for this model),
         # not the provider: try the next one, but don't sideline this one.
-        print(f"LLM provider {route.label} ({route.model}) refused the request: HTTP {status}")
+        _log.info("Provider %s (%s) refused the request: HTTP %s", route.label, route.model, status)
 
 
 def _final_error(failures: list[LLMRequestError]) -> LLMRequestError:

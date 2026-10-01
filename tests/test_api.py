@@ -295,3 +295,11 @@ def test_ingest_accepts_text_and_docx(client):
 def test_ingest_rejects_unsupported_extension(client):
     r = client.post("/api/ingest", files={"file": ("malware.exe", b"MZ...", "application/octet-stream")})
     assert r.status_code == 400
+
+
+def test_responses_carry_a_request_id(client):
+    r = client.get("/api/status")
+    assert r.headers.get("X-Request-ID")
+    # A client-supplied id is echoed back (for log correlation).
+    r2 = client.get("/api/status", headers={"X-Request-ID": "abc123trace"})
+    assert r2.headers["X-Request-ID"] == "abc123trace"
