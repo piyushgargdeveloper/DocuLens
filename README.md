@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) tool that answers questions about
 the PDFs you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
-**Live:** https://doculens.duckdns.org — **Latest release:** v3.2.0
+**Live:** https://doculens.duckdns.org — **Latest release:** v3.3.0
 
 ## What it does
 
