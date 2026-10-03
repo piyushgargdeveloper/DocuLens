@@ -47,17 +47,19 @@ documented chunking evaluation stays valid.
    generic message; exception text is logged server-side only.
 
 2. **Frontend** (`static/index.html`, `static/style.css`, `static/app.js`)
-   Vanilla, no framework or build step. The design ("Reading Room", v2.4.0 —
-   warm paper, Fraunces editorial serif for headlines, Inter for the UI, mono
-   numerals, one ink-green accent, amber reserved for citations; earlier
-   "Modern product",
-   `DESIGN.md`, v2.1.0): a documents sidebar card and a conversation card;
+   Vanilla, no framework or build step. The design ("Calm Light", v3.4.0 —
+   modelled on Claude's own design language: ink text and black primary
+   buttons on a warm near-white ground, hairline borders, one terracotta
+   accent for brand and citation chips, self-hosted Newsreader serif for
+   the hero and wordmark, Inter for the UI; see `DESIGN.md`): a documents sidebar card and a conversation card;
    answers carry their retrieved passages as source cards beside them on
    wide screens (a CSS container
    query on the conversation pane) and folded under them on narrow ones.
    Page references the model writes (`【file, Page 3】`, `(Page 3)`,
    `[Page 3]`, …) are parsed into "p. 3" chips; clicking one
-   highlights the matching passage in yellow. Every dynamic string is inserted with
+   highlights the matching passage in yellow. Model answers render as safe Markdown (v3.2.0:
+   headings, lists, code, tables, bold, inline citation chips) through a
+   small renderer in `app.js`. Every dynamic string is inserted with
    `textContent` or text nodes, never `innerHTML`. All requests go through
    one `api()` helper that turns network failures and non-JSON proxy error
    pages into readable messages instead of a stuck UI. The release version

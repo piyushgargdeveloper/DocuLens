@@ -420,3 +420,22 @@ understood and explainable without AI help (the task requires it):
   as the production-hardening step, keeping user document content out of logs
   and error reports. Re-tested the live site from a Kali box with nmap/nikto/
   sslscan and found no vulnerabilities.
+
+## Versions 3.2.0 – 3.5.0
+
+- **3.2.0:** the user wanted answers to read like Claude/ChatGPT rather than
+  flat text. The assistant wrote a strictly safe Markdown renderer (every node
+  built with `createElement`/`textContent`, never `innerHTML`) so untrusted
+  model or document text still cannot inject markup, and verified it headless
+  in light and dark.
+- **3.3.0:** the user found the "Reading Room" look fancy rather than serious
+  and noticed a frozen indexing spinner. The assistant moved to a neutral
+  Inter-only look and fixed the spinner (a `prefers-reduced-motion` rule had
+  stopped its animation).
+- **3.4.0:** the user supplied Claude's exported design tokens as the
+  reference. The assistant applied them via the frontend-design skill — ink
+  and warm near-white, one terracotta accent, Newsreader serif over Inter —
+  and checked light and dark in a headless browser.
+- **3.5.0:** UX polish (reading-screen facts and progress bar, instant
+  starter questions, thinking-panel polish, a landing page with an example
+  cited answer). Frontend only; verified headless with zero console errors.

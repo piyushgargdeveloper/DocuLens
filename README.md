@@ -1,15 +1,15 @@
 # DocuLens — An AI Powered Document Assistant
 
 A Retrieval-Augmented Generation (RAG) tool that answers questions about
-the PDFs you upload — grounded strictly in their content, with the exact
+the documents you upload — grounded strictly in their content, with the exact
 source page and passage shown beside every answer.
 
 **Live:** https://doculens.duckdns.org — **Latest release:** v3.5.0
 
 ## What it does
 
-Upload one or more PDFs, ask a question in plain language, and get back
-an answer built only from the passages that are actually relevant — with
+Upload one or more documents (PDF, Word, text or Markdown), ask a question
+in plain language, and get back an answer built only from the passages that are actually relevant — with
 the document, page number and passage text each answer came from. If the
 documents don't contain the answer, the assistant says so instead of
 guessing.
@@ -48,8 +48,8 @@ those passages) so answers stay traceable back to the source text.
 
 ## Key features
 
-- Upload any PDF and ask questions about it — no document-specific setup.
-- **Multiple documents**: add up to 5 PDFs and ask across all of them;
+- Upload any document and ask questions about it — no document-specific setup.
+- **Multiple documents**: add up to 5 documents and ask across all of them;
   every source says which document and page it came from.
 - **Follow-up questions**: the last few turns are sent with each question,
   so "how many moons does it have?" resolves "it" from the previous
@@ -81,6 +81,7 @@ those passages) so answers stay traceable back to the source text.
   these types are accepted; non-PDF files are split into even pages so
   citations stay meaningful.
 - **Rich, readable answers** (v3.2.0): responses render as proper Markdown — headings, bold, bullet/numbered lists, tables, code — with page citations as inline chips, built safely (no innerHTML), for a Claude/ChatGPT-grade reading experience.
+- **"Calm Light" design** (v3.4.0–v3.5.0): a quiet, Claude-style interface — ink on warm near-white, one terracotta accent, Newsreader serif over Inter, light and dark themes — with a reading-screen progress bar, instant "Try asking" starters and an example cited answer on the landing page (`DESIGN.md`).
 - **Shows the model's thinking** (v2.3.0): when the model exposes its
   reasoning, it streams into a collapsible "Thinking…" panel that folds to
   "Thought for Ns", like ChatGPT.
@@ -160,7 +161,7 @@ test result encountered while building this is logged chronologically in
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/ingest` | Upload a PDF (multipart) into the session |
+| `POST /api/ingest` | Upload a document (PDF, .docx, .txt or .md; multipart) into the session |
 | `POST /api/ask/stream` | Ask; answer as server-sent events: `sources`, `token`…, `done` / `error` |
 | `POST /api/ask` | Same, as one JSON response |
 | `POST /api/summary` | Summary of one document |
