@@ -38,7 +38,10 @@ documented chunking evaluation stays valid.
    documents (each its own `IndexState`) and the last 10 Q/A turns. Sessions
    expire after 2 hours idle — enforced by a background task (started in the
    app's `lifespan`) every 5 minutes, not only when a request arrives — and at
-   most 50 are kept (oldest-idle evicted), so memory is bounded. Uploaded PDFs
+   most 50 are kept (oldest-idle evicted). A configurable `MAX_TOTAL_CHUNKS`
+   budget (75,000 by default) provides an additional aggregate memory guard.
+   Active API responses refresh the browser cookie expiry without rotating the
+   anonymous session ID. Uploaded PDFs
    are never written to disk: the upload's temporary spool file is closed
    right after reading, and only extracted text and embeddings are kept, in
    memory, for the life of the session. Ingestion and LLM calls run in a worker thread
@@ -145,9 +148,11 @@ selected documents are ranked twice per query: by BM25 (`retriever.py`;
 term statistics taken over the selected documents together, so scores are
 comparable across them) and by cosine similarity of the MiniLM embeddings.
 Every ranking is fused with reciprocal rank fusion (k = 60) and the top 4
-kept (`DEFAULT_TOP_K`). For a follow-up there are two queries — the question
-and "previous question + question" — so four rankings are fused. Each
-passage keeps its cosine similarity as the displayed `score`. With one
+kept (`DEFAULT_TOP_K`). For non-overview questions, `gather_sources()` applies
+the configurable `RETRIEVAL_SCORE_FLOOR` (0.25 by default) to the displayed
+cosine scores: if all hits are below it, no passages are sent to the model and
+the grounded refusal path is used. This is a conservative calibration knob,
+not a guarantee of semantic correctness; re-measure it on a new document set.
 document and one query this is exactly the "Hybrid" retriever measured in
 `retrieval_eval.py` (Hit@4 0.82, MRR@10 0.70 vs 0.77 / 0.56 for embeddings
 alone); a test pins that equivalence, and `retrieval_eval.py` imports the
@@ -172,15 +177,20 @@ contract is unchanged: no facts, numbers or examples beyond the passages,
 one exact refusal string when nothing is relevant, and passages declared
 untrusted content fenced between `<<<BEGIN PASSAGES>>>` / `<<<END
 PASSAGES>>>`, so an instruction inside a PDF is reported, not obeyed
-(`tests/test_prompt_injection.py`). With earlier turns, one more rule says
-they may resolve references but are never evidence.
+(`tests/test_prompt_injection.py`). Delimiter tokens found inside uploaded
+passage text and filenames are replaced with inert Unicode lookalikes before
+prompt construction. Earlier turns may resolve references but are never
+trusted as evidence. Whole-document overview questions use a bounded sample;
+section-specific requests stay on normal retrieval and abstention paths.
 
 **Streaming.** `llm_client.ask_stream()` sends `stream: true` and yields
 content deltas from the provider's SSE stream (decoded as UTF-8 explicitly —
 providers omit the charset and `requests` would otherwise assume
-ISO-8859-1). `main.py` fetches the sources and the *first* piece before
-opening the response, so configuration, rate-limit and provider errors still
-return a normal HTTP status; after that, a failure becomes an `error` event.
+ISO-8859-1). Provider reasoning deltas are discarded at the API boundary and
+are never stored, logged, or shown to users. `main.py` fetches the sources and
+first content piece before opening the response, so configuration, rate-limit
+and provider errors still return a normal HTTP status; after that, a failure
+becomes an `error` event.
 The turn is saved to the history only when the stream completes, so a
 stopped answer never becomes context. The response carries
 `X-Accel-Buffering: no` so Nginx passes events through immediately.
@@ -250,8 +260,8 @@ Two scripts sit beside the app and call the pipeline modules directly:
 
 | Threat | Control |
 |---|---|
-| Quota or CPU exhaustion by one client | Per-IP rate limits (`RATE_LIMITS`): LLM endpoints 10/min and 100/h, uploads 10/10 min; IP from `X-Real-IP` only when the peer is the loopback proxy |
-| Memory exhaustion by a huge document | `MAX_CHUNKS_PER_DOC` (1500 ≈ 360 pages) checked before embedding; 5 docs/session; 50 sessions |
+| Quota or CPU exhaustion by one client | Per-IP rate limits (`RATE_LIMITS`): LLM endpoints 10/min and 100/h, uploads 10/10 min; `X-Real-IP` is accepted only from a peer in the configured `TRUSTED_PROXIES` CIDRs |
+| Memory exhaustion by a huge or aggregate document set | `MAX_CHUNKS_PER_DOC` (1500), `MAX_TOTAL_CHUNKS` (75,000 default), 5 docs/session, 50 sessions |
 | Non-PDF uploads | `%PDF-` signature check in the first 1024 bytes |
 | Hostile filenames | Basename only, control characters stripped, 120-character cap |
 | XSS / clickjacking / injection of external resources | CSP `default-src 'self'` with no inline code, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`; all dynamic text via `textContent` |
@@ -264,7 +274,8 @@ Two scripts sit beside the app and call the pipeline modules directly:
 | Overload (smoothness) | Semaphores: 4 concurrent LLM calls, 2 concurrent ingestions; wait ≤ 20s, then 503 "busy" with `Retry-After` |
 | Vulnerable dependencies | Dependabot updates; `pip-audit` in CI fails the build on any known advisory |
 | Cross-session access (IDOR) | Document ids are looked up only inside the caller's own session (256-bit cookie) |
-| Prompt injection via PDF text | Passages fenced and declared untrusted (see Generation) |
+| Prompt injection via PDF text or filenames | Passages fenced and declared untrusted; fence tokens inside source text and names are neutralized before prompting |
+| Weak retrieval / hallucination risk | Non-overview hits below `RETRIEVAL_SCORE_FLOOR` (0.25 default) are withheld from the LLM; overview routing is limited to whole-document questions |
 | Third-party data flow | Page loads nothing external; only the question + retrieved passages go to the LLM provider, disclosed on the upload screen |
 
 ## Failure Handling

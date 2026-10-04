@@ -82,9 +82,8 @@ those passages) so answers stay traceable back to the source text.
   citations stay meaningful.
 - **Rich, readable answers** (v3.2.0): responses render as proper Markdown — headings, bold, bullet/numbered lists, tables, code — with page citations as inline chips, built safely (no innerHTML), for a Claude/ChatGPT-grade reading experience.
 - **"Calm Light" design** (v3.4.0–v3.5.0): a quiet, Claude-style interface — ink on warm near-white, one terracotta accent, Newsreader serif over Inter, light and dark themes — with a reading-screen progress bar, instant "Try asking" starters and an example cited answer on the landing page (`DESIGN.md`).
-- **Shows the model's thinking** (v2.3.0): when the model exposes its
-  reasoning, it streams into a collapsible "Thinking…" panel that folds to
-  "Thought for Ns", like ChatGPT.
+- Provider reasoning metadata is never returned to the browser or stored in
+  conversation history; the UI receives answer content and cited sources only.
 - **Reads scanned PDFs** (v2.3.0): image-only pages are OCR'd with Tesseract.
 - **Several AI providers with automatic failover** (v2.2.0): Groq and
   Hugging Face (`gpt-oss-120b`), OpenRouter (Nemotron 3 Super 120B, free
@@ -339,12 +338,11 @@ This is a document QA tool that feeds untrusted file content into an
 LLM, so a few things are handled deliberately:
 
 - **Indirect prompt injection**: retrieved passages are fenced inside
-  explicit delimiters and the system prompt instructs the model to treat
-  them as quoted data, never as instructions. Verified against a test
-  PDF containing injected "ignore all previous instructions" and
-  system-prompt-exfiltration payloads — the model reported the injected
-  text as document content and refused the exfiltration attempt instead
-  of obeying either (see `tests/test_prompt_injection.py`).
+  explicit delimiters and delimiter tokens inside uploaded text and filenames
+  are neutralized before prompting. The system prompt treats passages as
+  quoted data, never as instructions. Verified against injected "ignore all
+  previous instructions" and system-prompt-exfiltration payloads (see
+  `tests/test_prompt_injection.py`).
 - **Secrets**: provider API keys are read only from the environment
   (`GEMINI_API_KEY`, `GROQ_API_KEY`/`LLM_API_KEY`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`,
   `HF_TOKEN`). `/api/status` reports provider names, models and
@@ -352,8 +350,9 @@ LLM, so a few things are handled deliberately:
   gitignored and only `.env.example` (placeholders) is tracked.
 - **Session cookie**: the session ID is an `httponly`, `samesite=lax`
   cookie, marked `Secure` whenever the site is served over HTTPS — not
-  readable from JavaScript, which limits exposure to XSS-based token
-  theft.
+  readable from JavaScript, which limits exposure to XSS-based token theft.
+  Active API requests refresh its 2-hour browser expiry without changing the
+  session ID. Sessions are anonymous bearer sessions, not user accounts.
 - **Errors**: clients get a fixed message and a proper status code;
   exception details are logged on the server only (CodeQL
   `py/stack-trace-exposure`).
@@ -377,9 +376,9 @@ LLM, so a few things are handled deliberately:
   (`/docs`, `/redoc`, `/openapi.json`) are disabled.
 - **Rate limits** per client IP: 10 LLM-backed requests a minute and 100 an
   hour (questions, summaries, suggestions), 10 uploads per 10 minutes —
-  so one script can't exhaust the shared LLM quota or the CPU. Behind Nginx
-  the client IP comes from `X-Real-IP`, trusted only from the loopback
-  proxy.
+  so one script can't exhaust the shared LLM quota or the CPU. `X-Real-IP` is
+  used only when the immediate peer belongs to a CIDR in `TRUSTED_PROXIES`
+  (loopback-only by default; configure the Docker bridge explicitly).
 - **Uploads**: the file must start like a PDF (`%PDF-`), not just be named
   `.pdf`; filenames are cut to 120 characters and stripped of control
   characters; a document over ~360 pages of text is rejected *before*
@@ -388,7 +387,14 @@ LLM, so a few things are handled deliberately:
   reference code that matches the server log, never internals.
 - **Resource limits**: uploads are capped at 25MB (never read past the
   limit), questions at 1000 characters, 5 documents per session, 50
-  sessions per server, and sessions expire after 2 hours of inactivity.
+  sessions per server, and sessions expire after 2 hours of inactivity. A
+  best-effort `MAX_TOTAL_CHUNKS` budget (75,000 by default) also limits the
+  aggregate in-memory index footprint; tune it down for small hosts.
+- **RAG abstention**: non-overview retrieval is gated by a configurable
+  `RETRIEVAL_SCORE_FLOOR` (0.25 by default). If every retrieved passage is
+  below the floor, the LLM receives no passages and must return the fixed
+  grounded refusal rather than answer from weak context. Whole-document
+  overview questions intentionally use a document-order sample instead.
 - **Rendering**: all dynamic content is inserted via `textContent` (see
   above), never raw HTML or markdown interpretation.
 
@@ -561,14 +567,19 @@ docker run -p 8000:8000 --env-file .env ai-document-assistant
 Any host that runs containers (a plain VM, Render, Railway, Google Cloud
 Run, etc.) works the same way: build the image, set `LLM_API_KEY` (and
 optionally `LLM_BASE_URL`/`LLM_MODEL`) as environment variables/secrets
-on the platform, and point it at port 8000. There's no platform-specific
-configuration in this repo beyond the `Dockerfile` itself, deliberately —
-picking one hosting provider's proprietary config format over a portable
-container felt like the wrong default for a project meant to be run
-anywhere. Note: the `Dockerfile` installs PyTorch's CPU-only wheel
-explicitly (see `DECISIONS.md`) — without that, a plain `pip install`
-of this project's dependencies on Linux pulls several hundred MB of
-unused NVIDIA CUDA packages, which matters on a small instance's disk.
+on the platform, and point it at port 8000. For a reverse proxy, set
+`TRUSTED_PROXIES` to the proxy network CIDR (for example
+`172.17.0.0/16,127.0.0.0/8,::1/128`); never use `0.0.0.0/0`. Set
+`PREFETCH_MODEL=1` when predictable first-request latency is more important
+than startup time. `MAX_TOTAL_CHUNKS` can be lowered on memory-constrained
+hosts. There is no platform-specific configuration in this repo beyond the
+`Dockerfile` itself, deliberately — picking one hosting provider's
+proprietary config format over a portable container felt like the wrong
+default for a project meant to be run anywhere. Note: the `Dockerfile`
+installs PyTorch's CPU-only wheel explicitly (see `DECISIONS.md`) — without
+that, a plain `pip install` of this project's dependencies on Linux pulls
+several hundred MB of unused NVIDIA CUDA packages, which matters on a small
+instance's disk.
 
 **Note on scale**: session state (the FAISS index per uploaded document)
 lives in the process's memory — see Known limitations below. This is

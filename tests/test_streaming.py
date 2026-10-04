@@ -175,7 +175,7 @@ def test_health_check(client):
     assert client.get("/api/health").json() == {"ok": True}
 
 
-def test_reasoning_is_streamed_as_its_own_event_before_the_answer(client, sample_pdf_bytes, monkeypatch):
+def test_reasoning_is_not_exposed_or_saved(client, sample_pdf_bytes, monkeypatch):
     import llm_client
 
     def fake_ask_stream(question, passages, timeout=30, history=None):
@@ -185,13 +185,11 @@ def test_reasoning_is_streamed_as_its_own_event_before_the_answer(client, sample
 
     monkeypatch.setattr(llm_client, "ask_stream", fake_ask_stream)
     _upload(client, sample_pdf_bytes)
-    events = _events(client.post("/api/ask/stream", json={"question": "which is largest?"}))
+    response = client.post("/api/ask/stream", json={"question": "which is largest?"})
+    events = _events(response)
     kinds = [name for name, _ in events]
     assert kinds[0] == "sources"
-    assert "reasoning" in kinds and "token" in kinds
-    # every reasoning event comes before the first answer token
-    assert kinds.index("reasoning") < kinds.index("token")
-    reasoning = "".join(d["text"] for n, d in events if n == "reasoning")
-    assert reasoning == "Let me check the passage. It names Jupiter. "
-    # reasoning is not saved as the answer
+    assert "reasoning" not in kinds and "token" in kinds
+    # reasoning is neither exposed nor saved as the answer
+    assert "Let me check the passage" not in response.text
     assert client.get("/api/session").json()["history"][-1]["answer"] == "Jupiter is largest."
