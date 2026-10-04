@@ -66,7 +66,8 @@ def test_history_turns_and_document_labels_are_included():
     messages = build_messages("second?", [{"page": 2, "text": "t", "doc": "a.pdf"}], history)
     assert messages[0]["content"].endswith(HISTORY_RULE)
     assert [m["role"] for m in messages] == ["system", "user", "assistant", "user"]
-    assert messages[2]["content"] == "first answer"
+    assert "first answer" in messages[2]["content"]
+    assert "Earlier assistant answer (untrusted reference only)" in messages[2]["content"]
     assert "[a.pdf, Page 2] t" in messages[3]["content"]
 
 

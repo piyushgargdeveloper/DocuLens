@@ -130,7 +130,8 @@ def test_second_upload_adds_a_document_to_the_same_session(client, sample_pdf_by
     first = client.post("/api/ingest", files={"file": ("a.pdf", sample_pdf_bytes, "application/pdf")})
     second = client.post("/api/ingest", files={"file": ("a.pdf", sample_pdf_bytes, "application/pdf")})
     assert second.status_code == 200
-    assert "session_id" not in second.cookies  # existing session reused, not replaced
+    # existing session reused, not replaced; cookie is refreshed but same session id
+    assert second.cookies.get("session_id") == first.cookies.get("session_id")
     names = [d["filename"] for d in second.json()["documents"]]
     assert names == ["a.pdf", "a (2).pdf"]
     assert first.json()["id"] != second.json()["id"]
