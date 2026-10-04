@@ -38,13 +38,15 @@ documented chunking evaluation stays valid.
    documents (each its own `IndexState`) and the last 10 Q/A turns. Sessions
    expire after 2 hours idle — enforced by a background task (started in the
    app's `lifespan`) every 5 minutes, not only when a request arrives — and at
-   most 50 are kept (oldest-idle evicted), so memory is bounded. Uploaded PDFs
-   are never written to disk: the upload's temporary spool file is closed
-   right after reading, and only extracted text and embeddings are kept, in
-   memory, for the life of the session. Ingestion and LLM calls run in a worker thread
-   (`run_in_threadpool`) so one slow request never blocks the event loop.
-   Errors use real status codes (400/404/413/422/502/503/500) with a fixed,
-   generic message; exception text is logged server-side only.
+   most 50 are kept (oldest-idle evicted), so memory is bounded. **Sessions
+   are protected by a per-session `asyncio.Lock` (RLock-compatible) so
+   concurrent requests on the same cookie never corrupt the document map or
+   history.** Uploaded PDFs are never written to disk: the upload's temporary
+   spool file is closed right after reading, and only extracted text and
+   embeddings are kept, in memory, for the life of the session. Ingestion and
+   LLM calls run in a worker thread (`run_in_threadpool`) so one slow request
+   never blocks the event loop. Errors use real status codes (400/404/413/422/502/503/500)
+   with a fixed, generic message; exception text is logged server-side only.
 
 2. **Frontend** (`static/index.html`, `static/style.css`, `static/app.js`)
    Vanilla, no framework or build step. The design ("Calm Light", v3.4.0 —
@@ -105,6 +107,21 @@ documented chunking evaluation stays valid.
    `LLMConfigError` (no provider configured) / `LLMRateLimitError` (all
    rate limited) / `LLMRequestError`.
 
+   **Prompt injection hardening:**
+   - **Fence token sanitization** — `<<<BEGIN PASSAGES>>>` / `<<<END PASSAGES>>>`
+     in uploaded text and filenames are replaced with inert Unicode
+     lookalikes so they cannot break the prompt's structural fencing.
+   - **History labelled untrusted** — prior turns are prefixed "Earlier user
+     question (untrusted reference only):" so a prior answer cannot become
+     a higher-priority rule.
+   - **Summary/suggest reminders** — injection reminders added to those prompts.
+
+   **Streaming resilience:**
+   - Reasoning deltas (`reasoning` / `reasoning_content` fields) are preserved
+     and streamed to the UI as a collapsible "Thinking…" panel (v2.3.0 feature).
+   - Stream read errors are wrapped in `LLMRequestError` so failover and
+     cooldown trigger correctly when a connection drops mid-stream.
+
 8. **Orchestration** (`pipeline.py`)
    `ingest()`, `retrieve()`, `answer()` and `summarize()` — the only place
    the stages are wired together.
@@ -161,6 +178,8 @@ list, and the assistant refused. `pipeline.is_overview_question()` (a
 regular expression, tested against both kinds of question) routes these to
 `overview_sample()`: the document's first two chunks (abstract/introduction)
 plus evenly spaced chunks, eight passages in total, split across documents.
+**Sectional qualifiers** like "summarize section 4" are *not* treated as
+overview questions; they stay on the retrieval + abstention path.
 
 **Generation (v1.7.0 prompt).** The LLM's job is to answer, not to quote. The
 system prompt asks for a direct answer first, then explanation in its own
@@ -172,8 +191,18 @@ contract is unchanged: no facts, numbers or examples beyond the passages,
 one exact refusal string when nothing is relevant, and passages declared
 untrusted content fenced between `<<<BEGIN PASSAGES>>>` / `<<<END
 PASSAGES>>>`, so an instruction inside a PDF is reported, not obeyed
-(`tests/test_prompt_injection.py`). With earlier turns, one more rule says
-they may resolve references but are never evidence.
+(`tests/test_prompt_injection.py`). **Fence tokens inside uploaded
+content are sanitized to inert Unicode lookalikes so they cannot break the
+fence structure.** With earlier turns, one more rule says they may resolve
+references but are never evidence.
+
+**Retrieval score floor (abstention).** For non-overview questions, any
+retrieved passage scoring below `RETRIEVAL_SCORE_FLOOR` (default `0.30`,
+calibrated from `retrieval_eval.py`: irrelevant 95th %ile 0.44, relevant
+median 0.45) is discarded. If all passages fall below the floor, the
+question receives empty context and the model refuses with the standard
+"I could not find the answer..." string instead of hallucinating. Overview
+questions bypass the floor.
 
 **Streaming.** `llm_client.ask_stream()` sends `stream: true` and yields
 content deltas from the provider's SSE stream (decoded as UTF-8 explicitly —

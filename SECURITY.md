@@ -12,11 +12,16 @@ supported. Security fixes land on `main` and ship as a new patch release.
 For context before reporting an issue, see the "Security notes" section of
 `README.md`. In short:
 
-- Retrieved document passages are fenced in the LLM prompt and declared
-  untrusted data, and every question prompt ends with a reminder of that
-  rule after the passages, so instructions embedded in an uploaded document
-  should not be obeyed (verified against injection payloads on both the
-  main and the fallback model — see `DECISIONS.md`).
+- **Prompt injection hardening** — retrieved document passages are fenced in
+  the LLM prompt (`<<<BEGIN PASSAGES>>> … <<<END PASSAGES>>>`) and declared
+  untrusted data. **Fence tokens in uploaded text and filenames are
+  sanitized** (replaced with inert Unicode lookalikes) so they cannot break
+  the prompt structure. **Conversation history is explicitly labelled as
+  untrusted reference only** ("Earlier user question (untrusted reference
+  only):") so a prior model answer cannot silently become a higher-priority
+  rule. Every question prompt ends with a reminder of that rule after the
+  passages, so instructions embedded in an uploaded document should not be
+  obeyed (verified against injection payloads — see `tests/test_prompt_injection.py`).
 - LLM provider keys are read only from the environment (`GEMINI_API_KEY`,
   `GROQ_API_KEY` or `LLM_API_KEY`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, `HF_TOKEN`); the
   public `/api/status` shows provider names, models and availability only.
@@ -24,6 +29,8 @@ For context before reporting an issue, see the "Security notes" section of
   logged, rendered, or committed. `.env` is gitignored; only `.env.example`
   (placeholders) is tracked.
 - The session cookie is `httponly`, `samesite=lax`, and `Secure` over HTTPS.
+  **Active API responses refresh the cookie's max-age without rotating the
+  session ID**, so a user stays logged in during active use.
 - Error responses never include exception text or stack traces; details are
   logged on the server only.
 - Uploaded PDFs are never written to disk; their extracted text lives only
@@ -31,13 +38,19 @@ For context before reporting an issue, see the "Security notes" section of
   background task enforces this every 5 minutes).
 - Resources are bounded: 25MB uploads (never read past the limit), 1000-
   character questions, 5 documents per session, 50 sessions, 2-hour expiry.
+  **Aggregate chunk budget (`MAX_TOTAL_CHUNKS=75000` default) caps per-session
+  memory; a 503 is returned before embedding if the budget would be
+  exceeded.**
 - Document and model text is inserted into the page with `textContent` /
   text nodes only, never as HTML or markdown.
 - Strict Content-Security-Policy and other security headers on every
   response; HSTS over HTTPS; API docs endpoints disabled; no third-party
   requests from the page (fonts are self-hosted).
 - Per-client rate limits on LLM-backed endpoints and uploads, and caps on
-  concurrent LLM calls and ingestions.
+  concurrent LLM calls and ingestions. **Client IP comes from `X-Real-IP`,
+  trusted only from configured CIDR networks (`TRUSTED_PROXIES`, default
+  loopback only).** Behind Docker/Nginx, add the proxy network to the CIDR
+  list.
 - Cross-site API requests are refused (Origin / Sec-Fetch-Site), the
   session cookie is `__Host-` prefixed over HTTPS, and JSON bodies are
   capped at 16KB.
@@ -48,6 +61,13 @@ For context before reporting an issue, see the "Security notes" section of
   bounded (at most 30 pages) so an upload can't turn into unbounded CPU work.
 - The upload screen discloses that questions and relevant passages are sent
   to the LLM provider.
+- **RAG abstention**: non-overview questions where all retrieved passages
+  score below `RETRIEVAL_SCORE_FLOOR` (default 0.30, calibrated from
+  `retrieval_eval.py`) receive empty context and the model refuses with "I
+  could not find the answer..." instead of hallucinating.
+- **Streaming resilience**: stream read errors are wrapped in `LLMRequestError`
+  so provider failover and cooldown trigger correctly when a connection drops
+  mid-stream. Reasoning deltas are preserved and streamed to the UI.
 - Dependencies are watched by Dependabot, and CodeQL scans every push.
 - The container runs as an unprivileged user (uid 10001), not root, so a
   hypothetical code-execution bug in a dependency is not already root inside

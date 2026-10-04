@@ -278,6 +278,13 @@ working: they configure the first slot, and can point it at any
 OpenAI-compatible endpoint. `.env` is gitignored; never commit real API
 keys. See `.env.example` for everything.
 
+### Rate limiting & resource controls (all optional, safe defaults)
+
+- `TRUSTED_PROXIES` — comma-separated CIDR ranges whose `X-Real-IP` header is trusted for rate-limit IP identification. Default `127.0.0.0/8,::1/128` (loopback only). Behind Docker/Nginx, add the proxy network, e.g. `TRUSTED_PROXIES=172.17.0.0/16,127.0.0.0/8,::1/128`.
+- `MAX_TOTAL_CHUNKS` — aggregate chunk budget across all documents in a session (503 when exceeded). Default `75000` (≈75000 × 512 chars ≈ 38 MB text per session).
+- `RETRIEVAL_SCORE_FLOOR` — minimum retrieval score for non-overview questions. Hits below this floor are discarded, forcing a grounded refusal instead of a hallucinated answer. Default `0.30` (calibrated from `retrieval_eval.py`: irrelevant 95th %ile 0.44, relevant median 0.45). Increase for stricter abstention; decrease for recall.
+- `PREFETCH_MODEL` — if `1`, the embedding model loads on first use (lazy, not import-time). Default `0`.
+
 ## How to run
 
 ```bash
@@ -339,12 +346,18 @@ This is a document QA tool that feeds untrusted file content into an
 LLM, so a few things are handled deliberately:
 
 - **Indirect prompt injection**: retrieved passages are fenced inside
-  explicit delimiters and the system prompt instructs the model to treat
-  them as quoted data, never as instructions. Verified against a test
-  PDF containing injected "ignore all previous instructions" and
-  system-prompt-exfiltration payloads — the model reported the injected
-  text as document content and refused the exfiltration attempt instead
-  of obeying either (see `tests/test_prompt_injection.py`).
+  explicit delimiters (`<<<BEGIN PASSAGES>>> … <<<END PASSAGES>>>`) and the
+  system prompt instructs the model to treat them as quoted data, never as
+  instructions. **Fence tokens in uploaded text and filenames are
+  sanitized** (replaced with inert Unicode lookalikes) so they cannot
+  break the prompt structure. **Conversation history is explicitly
+  labelled as untrusted reference only** (\"Earlier user question
+  (untrusted reference only):\") so a prior model answer cannot silently
+  become a higher-priority rule. Verified against a test PDF containing
+  injected "ignore all previous instructions" and system-prompt-exfiltration
+  payloads — the model reported the injected text as document content and
+  refused the exfiltration attempt instead of obeying either (see
+  `tests/test_prompt_injection.py`).
 - **Secrets**: provider API keys are read only from the environment
   (`GEMINI_API_KEY`, `GROQ_API_KEY`/`LLM_API_KEY`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`,
   `HF_TOKEN`). `/api/status` reports provider names, models and
@@ -353,7 +366,8 @@ LLM, so a few things are handled deliberately:
 - **Session cookie**: the session ID is an `httponly`, `samesite=lax`
   cookie, marked `Secure` whenever the site is served over HTTPS — not
   readable from JavaScript, which limits exposure to XSS-based token
-  theft.
+  theft. Active API responses refresh the cookie's max-age without
+  rotating the session ID, so a user stays logged in during active use.
 - **Errors**: clients get a fixed message and a proper status code;
   exception details are logged on the server only (CodeQL
   `py/stack-trace-exposure`).
@@ -377,9 +391,10 @@ LLM, so a few things are handled deliberately:
   (`/docs`, `/redoc`, `/openapi.json`) are disabled.
 - **Rate limits** per client IP: 10 LLM-backed requests a minute and 100 an
   hour (questions, summaries, suggestions), 10 uploads per 10 minutes —
-  so one script can't exhaust the shared LLM quota or the CPU. Behind Nginx
-  the client IP comes from `X-Real-IP`, trusted only from the loopback
-  proxy.
+  so one script can't exhaust the shared LLM quota or the CPU. **Client IP
+  comes from `X-Real-IP`, trusted only from configured CIDR networks
+  (`TRUSTED_PROXIES`, default loopback only).** Behind Docker/Nginx, add
+  the proxy network to the CIDR list.
 - **Uploads**: the file must start like a PDF (`%PDF-`), not just be named
   `.pdf`; filenames are cut to 120 characters and stripped of control
   characters; a document over ~360 pages of text is rejected *before*
@@ -389,6 +404,13 @@ LLM, so a few things are handled deliberately:
 - **Resource limits**: uploads are capped at 25MB (never read past the
   limit), questions at 1000 characters, 5 documents per session, 50
   sessions per server, and sessions expire after 2 hours of inactivity.
+  **Aggregate chunk budget (`MAX_TOTAL_CHUNKS=75000` default) caps
+  per-session memory; a 503 is returned before embedding if the budget
+  would be exceeded.**
+- **RAG abstention**: non-overview questions where all retrieved passages
+  score below `RETRIEVAL_SCORE_FLOOR` (default 0.30, calibrated from
+  `retrieval_eval.py`) receive empty context and the model refuses with
+  "I could not find the answer..." instead of hallucinating.
 - **Rendering**: all dynamic content is inserted via `textContent` (see
   above), never raw HTML or markdown interpretation.
 
