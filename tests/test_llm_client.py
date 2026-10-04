@@ -341,7 +341,7 @@ def test_bad_key_on_one_provider_does_not_stop_the_answer(monkeypatch, three_pro
         return _reply("from nvidia")
 
     monkeypatch.setattr(llm_client.requests, "post", fake_post)
-    assert llm_client.answered_by(llm_client.ask("q?", [])) == {"provider": "NVIDIA", "model": "openai/gpt-oss-20b"}
+    assert llm_client.answered_by(llm_client.ask("q?", [])) == {"provider": "NVIDIA", "model": "nvidia/nemotron-3-super-120b-a12b"}
 
 
 def test_timeout_fails_over(monkeypatch, three_providers):

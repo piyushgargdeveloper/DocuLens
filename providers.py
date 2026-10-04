@@ -64,8 +64,9 @@ KNOWN = {
     "nvidia": {
         "label": "NVIDIA",
         "base_url": "https://integrate.api.nvidia.com/v1",
-        # gpt-oss-120b reached end of life on NVIDIA's API on 2026-09-03.
-        "model": "openai/gpt-oss-20b",
+        # Default: Nemotron 3 Super (12B active, 1M context, strong agentic/RAG).
+        # Falls back to Nemotron 3 Ultra if NVIDIA_FALLBACK_MODEL=ultra is set.
+        "model": "nvidia/nemotron-3-super-120b-a12b",
         "keys": ("NVIDIA_API_KEY",),
     },
     "huggingface": {
@@ -134,6 +135,12 @@ def routes() -> list[Route]:
     first = next((r for r in chain if r.provider == "groq"), None)
     if fallback and first is not None and fallback != first.model:
         chain.append(replace(first, model=fallback))
+
+    # NVIDIA fallback: add Nemotron 3 Ultra as a second route if requested
+    nvidia_fallback = _env("NVIDIA_FALLBACK_MODEL")
+    nvidia_first = next((r for r in chain if r.provider == "nvidia"), None)
+    if nvidia_fallback and nvidia_first is not None and nvidia_fallback != nvidia_first.model:
+        chain.append(replace(nvidia_first, model=nvidia_fallback))
     return chain
 
 
